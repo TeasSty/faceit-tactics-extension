@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "FACEIT Tactics Assistant",
+  "version": "0.1.0",
+  "description": "Персональные тактики, статистика игроков и сводка по команде прямо в комнате матча FACEIT.",
+  "default_locale": "ru",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://open.faceit.com/*",
+    "https://www.faceit.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.faceit.com/*/cs2/room/*",
+        "https://www.faceit.com/*/cs2/lobby/*",
+        "https://www.faceit.com/*/csgo/room/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FACEIT Tactics Assistant"
+  },
+  "options_page": "options.html"
+}

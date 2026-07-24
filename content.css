@@ -1,0 +1,237 @@
+#fta-panel {
+  position: fixed;
+  top: 96px;
+  right: 16px;
+  width: 340px;
+  max-height: 82vh;
+  background: linear-gradient(180deg, #14161c 0%, #0c0d11 100%);
+  border: 1px solid #2a2d38;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 200, 60, 0.06);
+  z-index: 2147483000;
+  font-family: "Segoe UI", Roboto, -apple-system, sans-serif;
+  color: #e9e9ee;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#fta-panel.fta-collapsed .fta-body {
+  display: none;
+}
+
+#fta-panel .fta-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, #1b1d25, #14161c);
+  border-bottom: 1px solid #262833;
+  cursor: default;
+}
+
+#fta-panel .fta-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  background: linear-gradient(90deg, #f5c94a, #f2a93a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+#fta-panel .fta-toggle {
+  background: none;
+  border: none;
+  color: #9a9db0;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+#fta-panel .fta-body {
+  padding: 12px;
+  overflow-y: auto;
+}
+
+#fta-panel .fta-loading,
+#fta-panel .fta-error {
+  font-size: 13px;
+  color: #b8bacb;
+  padding: 8px 2px;
+  line-height: 1.5;
+}
+
+#fta-panel .fta-error a {
+  color: #f2c14e;
+}
+
+#fta-panel .fta-btn {
+  margin-top: 8px;
+  background: linear-gradient(90deg, #f5c94a, #f2a93a);
+  border: none;
+  color: #16171c;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+}
+
+#fta-panel .fta-btn:hover {
+  filter: brightness(1.07);
+}
+
+#fta-panel .fta-map-banner {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f2c14e;
+  background: rgba(242, 193, 78, 0.08);
+  border: 1px solid rgba(242, 193, 78, 0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+
+#fta-panel .fta-summary {
+  font-size: 12px;
+  color: #c7c9d6;
+  background: #191b22;
+  border: 1px solid #262833;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+#fta-panel .fta-summary b {
+  color: #e9e9ee;
+}
+
+#fta-panel .fta-target {
+  border-color: rgba(255, 90, 90, 0.3);
+  background: rgba(255, 90, 90, 0.06);
+}
+
+#fta-panel .fta-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+#fta-panel .fta-tab {
+  flex: 1;
+  background: #191b22;
+  border: 1px solid #262833;
+  color: #9a9db0;
+  font-size: 12px;
+  padding: 7px 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#fta-panel .fta-tab-active {
+  background: #22242e;
+  color: #f2c14e;
+  border-color: rgba(242, 193, 78, 0.35);
+}
+
+#fta-panel .fta-list.fta-hidden {
+  display: none;
+}
+
+#fta-panel .fta-card {
+  background: #16171e;
+  border: 1px solid #262833;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+#fta-panel .fta-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#fta-panel .fta-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #2a2d38;
+}
+
+#fta-panel .fta-nick {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0f0f4;
+}
+
+#fta-panel .fta-sub {
+  font-size: 11px;
+  color: #8b8ea0;
+}
+
+#fta-panel .fta-stats-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+#fta-panel .fta-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+#fta-panel .fta-stat-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f2c14e;
+}
+
+#fta-panel .fta-stat-label {
+  font-size: 10px;
+  color: #7d8094;
+  margin-top: 1px;
+}
+
+#fta-panel .fta-tactic {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c7c9d6;
+  background: #101116;
+  border: 1px solid #21232c;
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 4px;
+}
+
+#fta-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #16171e;
+  border: 1px solid rgba(242, 193, 78, 0.35);
+  color: #f0f0f4;
+  font-family: "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 2147483001;
+  max-width: 320px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+#fta-toast.fta-toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
