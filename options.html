@@ -2,87 +2,269 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<title>FACEIT Tactics Assistant — Настройки</title>
-<style>
-  body {
-    margin: 0;
-    background: #0c0d11;
-    color: #e9e9ee;
-    font-family: "Segoe UI", Roboto, -apple-system, sans-serif;
-    padding: 32px;
-    max-width: 560px;
-  }
-  h1 {
-    font-size: 18px;
-    background: linear-gradient(90deg, #f5c94a, #f2a93a);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    margin-bottom: 4px;
-  }
-  p { color: #b8bacb; font-size: 13px; line-height: 1.6; }
-  a { color: #f2c14e; }
-  label { display: block; font-size: 12px; color: #9a9db0; margin: 18px 0 6px; }
-  input[type="text"] {
-    width: 100%;
-    box-sizing: border-box;
-    background: #16171e;
-    border: 1px solid #2a2d38;
-    color: #f0f0f4;
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 13px;
-  }
-  button {
-    margin-top: 16px;
-    background: linear-gradient(90deg, #f5c94a, #f2a93a);
-    border: none;
-    color: #16171c;
-    font-weight: 700;
-    font-size: 13px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  #status { margin-top: 10px; font-size: 12px; color: #7fd08a; min-height: 16px; }
-  ol { color: #b8bacb; font-size: 13px; line-height: 1.7; }
-  .fta-opt-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 22px;
-    padding: 12px 14px;
-    background: #16171e;
-    border: 1px solid #2a2d38;
-    border-radius: 8px;
-  }
-  .fta-opt-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #f2c14e; }
-  .fta-opt-row label { margin: 0; font-size: 13px; color: #e9e9ee; cursor: pointer; }
-  .fta-opt-hint { font-size: 11px; color: #7d8094; margin-top: 4px; }
-</style>
+<title>FACEIT Tactics Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <h1>FACEIT Tactics Assistant</h1>
-  <p>Расширению нужен персональный API-ключ FACEIT Data API, чтобы читать статистику матча и игроков. Ключ хранится только в твоём браузере (chrome.storage.sync) и никуда не отправляется, кроме официального API FACEIT.</p>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">FT</span>
+        <div class="brand-text">
+          <span class="brand-title">FACEIT Tactics</span>
+          <span class="brand-sub">Assistant</span>
+        </div>
+      </div>
 
-  <ol>
-    <li>Зайди на <a href="https://developers.faceit.com/apps" target="_blank" rel="noopener">developers.faceit.com/apps</a> и войди под своим FACEIT-аккаунтом.</li>
-    <li>Создай приложение (Create new app), любое название.</li>
-    <li>В разделе API keys создай ключ типа <b>Server-side</b>.</li>
-    <li>Скопируй ключ и вставь его ниже.</li>
-  </ol>
+      <nav class="nav">
+        <button class="nav-item active" data-section="dashboard">
+          <svg viewBox="0 0 24 24" class="nav-icon"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-section="matchroom">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M4 5h16v11H8l-4 4V5z" stroke-linejoin="round"/></svg>
+          <span>Matchroom</span>
+        </button>
+        <button class="nav-item" data-section="playerstats">
+          <svg viewBox="0 0 24 24" class="nav-icon"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="17" rx="1"/></svg>
+          <span>Player Stats</span>
+        </button>
+        <button class="nav-item" data-section="maps">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4Z" stroke-linejoin="round"/><path d="M9 4v13"/><path d="M15 6.5v13"/></svg>
+          <span>Maps</span>
+        </button>
+        <button class="nav-item" data-section="settings">
+          <svg viewBox="0 0 24 24" class="nav-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V19a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.51 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H2a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.51-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H8a1.7 1.7 0 0 0 1.04-1.56V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V8a1.7 1.7 0 0 0 1.56 1.04H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.1Z"/></svg>
+          <span>Settings</span>
+        </button>
 
-  <label for="apiKey">FACEIT API Key</label>
-  <input type="text" id="apiKey" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" />
-  <button id="save">Сохранить</button>
-  <div id="status"></div>
+        <div class="nav-divider"></div>
 
-  <div class="fta-opt-row">
-    <input type="checkbox" id="showTactics" />
-    <label for="showTactics">Показывать персональную тактику для игроков</label>
+        <button class="nav-item" data-section="premium">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="m12 2 2.9 6.3L21.5 9l-5 4.6L17.8 21 12 17.6 6.2 21l1.3-7.4-5-4.6 6.6-.7L12 2Z" stroke-linejoin="round"/></svg>
+          <span>Premium</span>
+          <span class="nav-badge">Скоро</span>
+        </button>
+        <button class="nav-item" data-section="discord">
+          <svg viewBox="0 0 24 24" class="nav-icon"><circle cx="8.5" cy="12" r="1.4"/><circle cx="15.5" cy="12" r="1.4"/><path d="M6 8.5c1-1 2.4-1.6 3.8-1.9l.5 1M18 8.5c-1-1-2.4-1.6-3.8-1.9l-.5 1M5 9c-1.4 3-1.6 6.4-1 8.5 1.6 1 3.4 1.7 5.2 2l.9-1.6M19 9c1.4 3 1.6 6.4 1 8.5-1.6 1-3.4 1.7-5.2 2l-.9-1.6"/></svg>
+          <span>Discord</span>
+        </button>
+        <button class="nav-item" data-section="help">
+          <svg viewBox="0 0 24 24" class="nav-icon"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.2 1-1.2 1.9"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg>
+          <span>Help</span>
+        </button>
+        <button class="nav-item" data-section="about">
+          <svg viewBox="0 0 24 24" class="nav-icon"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>
+          <span>About</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-pill" id="server-status">
+          <span class="status-dot" id="server-status-dot"></span>
+          <span id="server-status-text">Проверка соединения…</span>
+        </div>
+        <span class="version-tag" id="version-tag">v0.1.0</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <!-- Dashboard -->
+      <section class="panel active" id="section-dashboard">
+        <header class="panel-header">
+          <h1>Добро пожаловать</h1>
+          <p>Расширение уже готово к работе — API-ключ настроен на сервере, тебе ничего вводить не нужно.</p>
+        </header>
+
+        <div class="hero-card">
+          <div class="hero-text">
+            <h2>Открой комнату матча CS2 на FACEIT</h2>
+            <p>Панель со статистикой, тактикой и сводкой по команде появится справа автоматически, как только матч будет найден.</p>
+            <a class="btn btn-primary" href="https://www.faceit.com/ru/cs2" target="_blank" rel="noopener">Открыть FACEIT</a>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <div class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="17" rx="1"/></svg></div>
+            <h3>Статистика под каждым игроком</h3>
+            <p>K/D, winrate, HS%, ELO, уровень и число матчей — прямо в комнате, без переключения вкладок.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5z" stroke-linejoin="round"/></svg></div>
+            <h3>Персональная тактика</h3>
+            <p>Своя короткая подсказка для каждого игрока твоей команды с кнопкой вставки в командный чат.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4Z" stroke-linejoin="round"/><path d="M9 4v13"/><path d="M15 6.5v13"/></svg></div>
+            <h3>Сводка по картам и сопернику</h3>
+            <p>Сильные карты команды, слабое звено соперника и история личных встреч.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Matchroom -->
+      <section class="panel" id="section-matchroom">
+        <header class="panel-header">
+          <h1>Matchroom</h1>
+          <p>Как работает панель прямо в комнате матча.</p>
+        </header>
+        <div class="info-card">
+          <h3>Автоматическое появление</h3>
+          <p>Как только открываешь страницу <code>faceit.com/.../cs2/room/&lt;id&gt;</code>, расширение само определяет матч и подгружает данные — панель появляется справа поверх страницы.</p>
+        </div>
+        <div class="info-card">
+          <h3>Две вкладки</h3>
+          <p><b>«Моя команда»</b> — статистика и тактика твоих союзников. <b>«Соперник»</b> — статистика противников без тактических подсказок (это ведь их фишка, не твоя).</p>
+        </div>
+        <div class="info-card">
+          <h3>Сворачивание</h3>
+          <p>Стрелка в заголовке панели сворачивает её в компактную полоску — состояние запоминается между заходами.</p>
+        </div>
+      </section>
+
+      <!-- Player Stats -->
+      <section class="panel" id="section-playerstats">
+        <header class="panel-header">
+          <h1>Player Stats</h1>
+          <p>Что именно означают цифры под карточкой игрока.</p>
+        </header>
+        <div class="stat-explain-grid">
+          <div class="stat-explain"><span class="stat-explain-label">K/D</span><p>Среднее отношение убийств к смертям за карьеру.</p></div>
+          <div class="stat-explain"><span class="stat-explain-label">Winrate</span><p>Процент побед за всё время на FACEIT.</p></div>
+          <div class="stat-explain"><span class="stat-explain-label">HS%</span><p>Доля убийств в голову — показатель точности на ближней дистанции.</p></div>
+          <div class="stat-explain"><span class="stat-explain-label">Матчей</span><p>Общее число сыгранных матчей — чем больше, тем стабильнее статистика.</p></div>
+          <div class="stat-explain"><span class="stat-explain-label">Lvl / ELO</span><p>Текущий скилл-левел и рейтинг FACEIT для CS2.</p></div>
+          <div class="stat-explain"><span class="stat-explain-label">CT / T</span><p>Winrate по стороне на текущей карте — показывается, если FACEIT API отдаёт такой сегмент для аккаунта игрока.</p></div>
+        </div>
+      </section>
+
+      <!-- Maps -->
+      <section class="panel" id="section-maps">
+        <header class="panel-header">
+          <h1>Maps</h1>
+          <p>Логика подбора сильных карт и целей.</p>
+        </header>
+        <div class="info-card">
+          <h3>Сильные карты команды</h3>
+          <p>Карта попадает в список, если минимум у одного игрока твоей команды winrate ≥ 55% при 5+ сыгранных матчах на ней.</p>
+        </div>
+        <div class="info-card">
+          <h3>Слабое звено соперника</h3>
+          <p>Считается по произведению K/D и winrate — игрок с наименьшим значением помечается приоритетной целью для давления.</p>
+        </div>
+        <div class="info-card">
+          <h3>История личных встреч</h3>
+          <p>Расширение просматривает последние ~30 матчей каждого игрока твоей команды и ищет пересечения с текущими соперниками, считая счёт побед и поражений.</p>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="panel" id="section-settings">
+        <header class="panel-header">
+          <h1>Settings</h1>
+          <p>Всё, что можно настроить в расширении.</p>
+        </header>
+
+        <div class="setting-row">
+          <div class="setting-text">
+            <h3>Показывать тактику</h3>
+            <p>Персональная подсказка и кнопка вставки в чат под игроками своей команды.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="showTactics" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-text">
+            <h3>Показывать сводку по команде</h3>
+            <p>Сильные карты, слабое звено соперника и историю личных встреч в верхней части панели.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="showSummary" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+
+        <div class="info-card">
+          <h3>О сервере</h3>
+          <p>Статистика и тактика приходят через собственный сервер-прокси расширения — FACEIT API ключ хранится только там и никогда не передаётся тебе или другим пользователям.</p>
+          <button class="btn btn-secondary" id="recheck-server">Проверить соединение</button>
+        </div>
+      </section>
+
+      <!-- Premium -->
+      <section class="panel" id="section-premium">
+        <header class="panel-header">
+          <h1>Premium</h1>
+          <p>Дополнительные функции в разработке.</p>
+        </header>
+        <div class="hero-card hero-card-premium">
+          <div class="hero-text">
+            <h2>PRO-функции готовятся</h2>
+            <p>Расширенная аналитика по раундам, экономике и утилити — в работе. Пока все текущие функции расширения полностью бесплатны.</p>
+            <span class="badge-soon">Скоро</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Discord -->
+      <section class="panel" id="section-discord">
+        <header class="panel-header">
+          <h1>Discord</h1>
+          <p>Сообщество и обратная связь.</p>
+        </header>
+        <div class="info-card" id="discord-card">
+          <h3>Сервер ещё не создан</h3>
+          <p>Как только появится Discord-сообщество расширения, ссылка будет здесь.</p>
+        </div>
+      </section>
+
+      <!-- Help -->
+      <section class="panel" id="section-help">
+        <header class="panel-header">
+          <h1>Help</h1>
+          <p>Частые вопросы.</p>
+        </header>
+        <details class="faq-item">
+          <summary>Кнопка «Вставить тактику в чат» не находит поле чата</summary>
+          <p>FACEIT периодически меняет вёрстку. В этом случае текст тактики копируется в буфер обмена автоматически — просто вставь его в чат сочетанием Ctrl+V.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Не вижу CT/T статистику по карте</summary>
+          <p>Эти поля не всегда есть в публичном FACEIT Data API для конкретного игрока или карты — блок появляется только когда данные доступны.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Панель пишет, что сервер недоступен</summary>
+          <p>Сервер-прокси расширения временно не отвечает. Обнови страницу матча через минуту; если не помогает — обратись к автору расширения.</p>
+        </details>
+        <details class="faq-item">
+          <summary>В панели соперник показан под вкладкой «Моя команда»</summary>
+          <p>Порядок команд в ответе FACEIT API не всегда совпадает со стороной зрителя — просто переключись на вторую вкладку.</p>
+        </details>
+      </section>
+
+      <!-- About -->
+      <section class="panel" id="section-about">
+        <header class="panel-header">
+          <h1>About</h1>
+          <p>О расширении.</p>
+        </header>
+        <div class="info-card">
+          <h3>FACEIT Tactics Assistant</h3>
+          <p>Версия <span id="about-version">0.1.0</span>. Личный проект: статистика игроков, персональная тактика и сводка по команде прямо в комнате матча CS2 на FACEIT.</p>
+          <a class="btn btn-secondary" id="github-link" href="#" target="_blank" rel="noopener">Открыть репозиторий на GitHub</a>
+        </div>
+      </section>
+    </main>
   </div>
-  <div class="fta-opt-hint">Если выключить — под игроками своей команды останется только статистика, без блока тактики и кнопки вставки в чат.</div>
 
+  <script src="config.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

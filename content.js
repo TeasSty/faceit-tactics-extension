@@ -302,13 +302,13 @@
     const card = document.createElement("div");
     card.className = "fta-card";
 
-    if (err === "NO_API_KEY" || err === "BAD_API_KEY") {
+    if (err) {
       card.innerHTML = `
         <div class="fta-card-head">
           <img class="fta-avatar" src="${avatar}" onerror="this.style.visibility='hidden'"/>
           <div class="fta-nick">${nicknameSafe}</div>
         </div>
-        <div class="fta-error">Статистика недоступна: настрой API-ключ FACEIT в настройках расширения.</div>
+        <div class="fta-error">Статистика временно недоступна — сервер не ответил.</div>
       `;
       return card;
     }
@@ -385,12 +385,11 @@
       return;
     }
 
-    if (state.noApiKey) {
+    if (state.serverDown) {
       body.innerHTML = `
         <div class="fta-error">
-          Не настроен API-ключ FACEIT Data API.<br/>
-          Открой настройки расширения и вставь ключ с
-          <a href="https://developers.faceit.com/apps" target="_blank" rel="noopener">developers.faceit.com</a>.
+          Сервер статистики временно недоступен. Попробуй обновить страницу через минуту —
+          если проблема повторяется, загляни в раздел «Help» настроек расширения.
         </div>
         <button class="fta-btn" id="fta-open-options">Открыть настройки</button>
       `;
@@ -412,28 +411,30 @@
       body.appendChild(mapEl);
     }
 
-    if (state.bestMaps && state.bestMaps.length) {
-      const bm = document.createElement("div");
-      bm.className = "fta-summary";
-      bm.innerHTML = `<b>Сильные карты команды:</b> ${escapeHtml(state.bestMaps.join(", "))}`;
-      body.appendChild(bm);
-    }
+    if (state.showSummary !== false) {
+      if (state.bestMaps && state.bestMaps.length) {
+        const bm = document.createElement("div");
+        bm.className = "fta-summary";
+        bm.innerHTML = `<b>Сильные карты команды:</b> ${escapeHtml(state.bestMaps.join(", "))}`;
+        body.appendChild(bm);
+      }
 
-    if (state.weakestEnemy) {
-      const we = document.createElement("div");
-      we.className = "fta-summary fta-target";
-      we.innerHTML = `<b>Слабое звено у соперника:</b> ${escapeHtml(state.weakestEnemy.roster.nickname)} — приоритетная цель для давления.`;
-      body.appendChild(we);
-    }
+      if (state.weakestEnemy) {
+        const we = document.createElement("div");
+        we.className = "fta-summary fta-target";
+        we.innerHTML = `<b>Слабое звено у соперника:</b> ${escapeHtml(state.weakestEnemy.roster.nickname)} — приоритетная цель для давления.`;
+        body.appendChild(we);
+      }
 
-    if (state.headToHead && state.headToHead.length) {
-      const h2h = document.createElement("div");
-      h2h.className = "fta-summary";
-      const lines = state.headToHead
-        .map((e) => `${escapeHtml(e.nickname)}: ${e.wins}-${e.losses} ${e.wins >= e.losses ? "в вашу пользу" : "не в вашу пользу"}`)
-        .join("<br/>");
-      h2h.innerHTML = `<b>Личные встречи с соперниками:</b><br/>${lines}`;
-      body.appendChild(h2h);
+      if (state.headToHead && state.headToHead.length) {
+        const h2h = document.createElement("div");
+        h2h.className = "fta-summary";
+        const lines = state.headToHead
+          .map((e) => `${escapeHtml(e.nickname)}: ${e.wins}-${e.losses} ${e.wins >= e.losses ? "в вашу пользу" : "не в вашу пользу"}`)
+          .join("<br/>");
+        h2h.innerHTML = `<b>Личные встречи с соперниками:</b><br/>${lines}`;
+        body.appendChild(h2h);
+      }
     }
 
     const tabs = document.createElement("div");
@@ -477,12 +478,12 @@
 
     const matchRes = await bg({ type: "FETCH_MATCH", matchId });
 
-    if (matchRes.error === "NO_API_KEY") {
-      renderPanel({ noApiKey: true });
+    if (matchRes.error === "NOT_FOUND") {
+      renderPanel({ error: "Матч не найден." });
       return;
     }
     if (matchRes.error) {
-      renderPanel({ error: `${matchRes.error} (проверь ключ API или доступность матча)` });
+      renderPanel({ serverDown: true });
       return;
     }
 
@@ -512,7 +513,10 @@
 
     const bestMaps = suggestBestMaps(ownData);
     const weakestEnemy = findWeakestLink(enemyData);
-    const { showTactics = true } = await chrome.storage.sync.get({ showTactics: true });
+    const { showTactics = true, showSummary = true } = await chrome.storage.sync.get({
+      showTactics: true,
+      showSummary: true
+    });
 
     renderPanel({
       mapName,
@@ -520,10 +524,11 @@
       enemy: enemyData,
       bestMaps,
       weakestEnemy,
-      showTactics
+      showTactics,
+      showSummary
     });
 
-    const headToHead = await computeHeadToHead(ownData, enemyData);
+    const headToHead = showSummary ? await computeHeadToHead(ownData, enemyData) : [];
     if (currentMatchId === matchId) {
       renderPanel({
         mapName,
@@ -532,6 +537,7 @@
         bestMaps,
         weakestEnemy,
         showTactics,
+        showSummary,
         headToHead
       });
     }
@@ -559,9 +565,7 @@
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     chrome.storage.onChanged.addListener((changes, area) => {
-      const relevant =
-        (area === "sync" && changes.showTactics) || (area === "local" && changes.faceitApiKey);
-      if (relevant && currentMatchId) {
+      if (area === "sync" && (changes.showTactics || changes.showSummary) && currentMatchId) {
         loadMatch(currentMatchId);
       }
     });

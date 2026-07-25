@@ -1,28 +1,16 @@
-const API_BASE = "https://open.faceit.com/data/v4";
+importScripts("config.js");
 
-async function getApiKey() {
-  // Ключ хранится в storage.local (не синхронизируется через аккаунт Google) —
-  // это личный секрет пользователя, ему незачем покидать устройство.
-  const { faceitApiKey } = await chrome.storage.local.get("faceitApiKey");
-  return faceitApiKey || "";
-}
+const { WORKER_BASE_URL, EXTENSION_SHARED_KEY } = FTA_CONFIG;
 
 async function apiGet(path) {
-  const key = await getApiKey();
-  if (!key) {
-    return { error: "NO_API_KEY" };
-  }
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      headers: { Authorization: `Bearer ${key}` }
+    const res = await fetch(`${WORKER_BASE_URL}${path}`, {
+      headers: EXTENSION_SHARED_KEY ? { "X-Extension-Key": EXTENSION_SHARED_KEY } : {}
     });
     if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        return { error: "BAD_API_KEY", status: res.status };
-      }
-      if (res.status === 404) {
-        return { error: "NOT_FOUND", status: res.status };
-      }
+      if (res.status === 403) return { error: "FORBIDDEN", status: res.status };
+      if (res.status === 404) return { error: "NOT_FOUND", status: res.status };
+      if (res.status === 500) return { error: "SERVER_ERROR", status: res.status };
       return { error: "HTTP_ERROR", status: res.status };
     }
     const data = await res.json();
@@ -32,9 +20,19 @@ async function apiGet(path) {
   }
 }
 
-// Открываем страницу настроек только один раз — сразу после первой установки,
-// чтобы пользователь сразу увидел, куда вставить API-ключ. При апдейтах и
-// перезапусках браузера страница настроек сама больше никогда не выскакивает.
+async function pingServer() {
+  try {
+    const res = await fetch(`${WORKER_BASE_URL.replace(/\/api$/, "")}/health`, {
+      headers: EXTENSION_SHARED_KEY ? { "X-Extension-Key": EXTENSION_SHARED_KEY } : {}
+    });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, message: String(e) };
+  }
+}
+
+// Показываем стартовую панель расширения только один раз, сразу после
+// первой установки — дальше пользователь ничего не настраивает.
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     chrome.runtime.openOptionsPage();
@@ -49,6 +47,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case "OPEN_OPTIONS": {
         chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
+        break;
+      }
+      case "PING_SERVER": {
+        sendResponse(await pingServer());
         break;
       }
       case "FETCH_MATCH": {

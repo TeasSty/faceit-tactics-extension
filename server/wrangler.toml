@@ -1,0 +1,8 @@
+name = "faceit-tactics-proxy"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Секреты (НЕ храни их здесь, задавай через `wrangler secret put`):
+#   FACEIT_API_KEY        — твой Server-side ключ FACEIT Data API
+#   EXTENSION_SHARED_KEY   — произвольная случайная строка, та же должна быть
+#                             прописана в extension/config.js
