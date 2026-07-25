@@ -1,10 +1,12 @@
 (() => {
-  const PANEL_ID = "fta-panel";
-  const STORAGE_COLLAPSED = "fta_collapsed";
-  let currentMatchId = null;
-  let currentMap = null;
+  const INLINE_CLASS = "fta-inline";
+  const RECHECK_INTERVAL_MS = 3000;
 
-  // ---------- helpers ----------
+  let currentMatchId = null;
+  let lastMatchState = { ready: false };
+  let recheckTimer = null;
+
+  // ---------- generic helpers ----------
 
   function bg(msg) {
     return new Promise((resolve) => {
@@ -95,18 +97,29 @@
     const input = findChatInput();
     if (input) {
       setNativeValue(input, text);
-      toast("Текст вставлен в чат — проверь и нажми отправить.");
+      toast("Тактика вставлена в чат — проверь и нажми отправить.");
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      toast("Поле чата не найдено на странице — текст скопирован (Ctrl+V в чат).");
+      toast("Поле чата не найдено — текст скопирован (Ctrl+V в чат).");
     } catch {
-      toast("Не удалось найти чат. Скопируй текст вручную из карточки игрока.");
+      toast("Не удалось найти чат. Скопируй текст вручную.");
     }
   }
 
-  // ---------- tactic generation ----------
+  // ---------- stat extraction ----------
+
+  const KNOWN_LIFETIME_KEYS = new Set([
+    "Average K/D Ratio",
+    "Average Headshots %",
+    "Win Rate %",
+    "Matches",
+    "Wins",
+    "Recent Results",
+    "Current Win Streak",
+    "Longest Win Streak"
+  ]);
 
   function findMapSegment(segments, mapName) {
     if (!segments || !mapName) return null;
@@ -125,6 +138,39 @@
     if (ct === null && t === null) return null;
     return { ct, t };
   }
+
+  function findBestWorstMap(segments) {
+    if (!segments || !segments.length) return { best: null, worst: null };
+    const withEnough = segments
+      .map((s) => ({ label: s.label, wr: num(s.stats && s.stats["Win Rate %"]), matches: num(s.stats && s.stats["Matches"]) }))
+      .filter((s) => s.matches >= 3);
+    if (!withEnough.length) return { best: null, worst: null };
+    const sorted = [...withEnough].sort((a, b) => b.wr - a.wr);
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+    if (best === worst || (best && worst && best.label === worst.label)) return { best, worst: null };
+    return { best, worst };
+  }
+
+  function getRecentForm(lt) {
+    const recent = lt["Recent Results"];
+    if (!Array.isArray(recent) || !recent.length) return null;
+    return recent.map((r) => (r === "1" ? "W" : "L"));
+  }
+
+  function pickExtraStats(lt) {
+    const extra = [];
+    for (const [key, value] of Object.entries(lt)) {
+      if (KNOWN_LIFETIME_KEYS.has(key)) continue;
+      if (value == null) continue;
+      if (typeof value === "object") continue;
+      extra.push([key, value]);
+      if (extra.length >= 6) break;
+    }
+    return extra;
+  }
+
+  // ---------- tactic generation ----------
 
   function generateTactic(nickname, lifetime, mapSegment, mapName) {
     lifetime = lifetime || {};
@@ -219,52 +265,6 @@
       .map(([map, votes]) => `${map} (${votes} сильных игрока)`);
   }
 
-  async function computeHeadToHead(ownData, enemyData) {
-    const enemyIds = new Set(enemyData.map((rd) => rd.roster.player_id));
-    const enemyNickById = new Map(enemyData.map((rd) => [rd.roster.player_id, rd.roster.nickname]));
-    const result = new Map(); // enemyId -> { nickname, wins, losses }
-
-    await Promise.all(
-      ownData.map(async (rd) => {
-        const ownId = rd.roster.player_id;
-        const res = await bg({ type: "FETCH_PLAYER_HISTORY", playerId: ownId, game: "cs2", limit: 30 });
-        if (res.error || !res.data || !Array.isArray(res.data.items)) return;
-
-        for (const item of res.data.items) {
-          const teams = item.teams || {};
-          const factions = Object.entries(teams);
-          if (factions.length < 2) continue;
-
-          let ownFactionKey = null;
-          for (const [fKey, fVal] of factions) {
-            const players = (fVal && fVal.players) || [];
-            if (players.some((p) => p.player_id === ownId)) ownFactionKey = fKey;
-          }
-          if (!ownFactionKey) continue;
-
-          const enemyFactionKey = factions.find(([fKey]) => fKey !== ownFactionKey)?.[0];
-          if (!enemyFactionKey) continue;
-          const oppPlayers = (teams[enemyFactionKey] && teams[enemyFactionKey].players) || [];
-          const matchedEnemies = oppPlayers.filter((p) => enemyIds.has(p.player_id));
-          if (!matchedEnemies.length) continue;
-
-          const winnerFaction = item.results && item.results.winner;
-          const ownWon = winnerFaction === ownFactionKey;
-
-          for (const p of matchedEnemies) {
-            const nickname = enemyNickById.get(p.player_id) || p.nickname;
-            const entry = result.get(p.player_id) || { nickname, wins: 0, losses: 0 };
-            if (ownWon) entry.wins += 1;
-            else entry.losses += 1;
-            result.set(p.player_id, entry);
-          }
-        }
-      })
-    );
-
-    return Array.from(result.values()).sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
-  }
-
   function findWeakestLink(rosterData) {
     let weakest = null;
     let weakestScore = Infinity;
@@ -281,228 +281,237 @@
     return weakest;
   }
 
-  // ---------- rendering ----------
+  async function computeHistoryInsights(ownData, enemyData) {
+    const enemyIds = new Set(enemyData.map((rd) => rd.roster.player_id));
+    const enemyNickById = new Map(enemyData.map((rd) => [rd.roster.player_id, rd.roster.nickname]));
+    const headToHeadMap = new Map(); // enemyId -> { nickname, wins, losses }
+    const ownRecent = new Map(); // ownId -> { wins, losses, sample }
 
-  function renderPlayerCard(rd, mapName, teamKind, showTactics) {
+    await Promise.all(
+      ownData.map(async (rd) => {
+        const ownId = rd.roster.player_id;
+        const res = await bg({ type: "FETCH_PLAYER_HISTORY", playerId: ownId, game: "cs2", limit: 30 });
+        if (res.error || !res.data || !Array.isArray(res.data.items)) return;
+
+        let wins = 0;
+        let losses = 0;
+
+        for (const item of res.data.items) {
+          const teams = item.teams || {};
+          const factions = Object.entries(teams);
+          if (factions.length < 2) continue;
+
+          let ownFactionKey = null;
+          for (const [fKey, fVal] of factions) {
+            const players = (fVal && fVal.players) || [];
+            if (players.some((p) => p.player_id === ownId)) ownFactionKey = fKey;
+          }
+          if (!ownFactionKey) continue;
+
+          const winnerFaction = item.results && item.results.winner;
+          const ownWon = winnerFaction === ownFactionKey;
+          if (ownWon) wins += 1;
+          else losses += 1;
+
+          const enemyFactionKey = factions.find(([fKey]) => fKey !== ownFactionKey)?.[0];
+          if (!enemyFactionKey) continue;
+          const oppPlayers = (teams[enemyFactionKey] && teams[enemyFactionKey].players) || [];
+          const matchedEnemies = oppPlayers.filter((p) => enemyIds.has(p.player_id));
+          for (const p of matchedEnemies) {
+            const nickname = enemyNickById.get(p.player_id) || p.nickname;
+            const entry = headToHeadMap.get(p.player_id) || { nickname, wins: 0, losses: 0 };
+            if (ownWon) entry.wins += 1;
+            else entry.losses += 1;
+            headToHeadMap.set(p.player_id, entry);
+          }
+        }
+
+        if (wins + losses > 0) ownRecent.set(ownId, { wins, losses, sample: wins + losses });
+      })
+    );
+
+    const headToHead = Array.from(headToHeadMap.values()).sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
+    return { headToHead, ownRecent };
+  }
+
+  // ---------- DOM injection ----------
+
+  // FACEIT — SPA с обфусцированными классами, поэтому мы ищем не по CSS-селекторам,
+  // а по точному тексту никнейма игрока: это единственное, что стабильно на странице.
+  // Хрупко к изменениям вёрстки и совпадениям текста — best-effort, без фолбэка на
+  // отдельную панель по требованию дизайна.
+  function findNicknameElement(nickname) {
+    if (!nickname || nickname.trim().length < 2) return null;
+    const target = nickname.trim();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+      acceptNode(el) {
+        if (el.closest && el.closest(`.${INLINE_CLASS}`)) return NodeFilter.FILTER_REJECT;
+        if (el.children.length > 0) return NodeFilter.FILTER_SKIP;
+        const text = (el.textContent || "").trim();
+        return text === target ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    return walker.nextNode();
+  }
+
+  function getInjectionContainer(anchorEl) {
+    let el = anchorEl;
+    for (let i = 0; i < 3 && el.parentElement; i++) el = el.parentElement;
+    return el;
+  }
+
+  function buildRecentFormHtml(form) {
+    if (!form || !form.length) return "";
+    const dots = form
+      .slice(0, 10)
+      .map((r) => `<span class="fta-dot ${r === "W" ? "fta-dot-w" : "fta-dot-l"}"></span>`)
+      .join("");
+    return `<div class="fta-row fta-recent"><span class="fta-row-label">Форма (посл. ${form.length})</span><span class="fta-dots">${dots}</span></div>`;
+  }
+
+  function buildStatCard(rd, mapName, teamKind, settings, ownRecentInfo) {
     const nickname = rd.roster.nickname;
     const nicknameSafe = escapeHtml(nickname);
-    const avatar = escapeHtml(rd.roster.avatar || "");
     const err = rd.error;
+
+    const card = document.createElement("div");
+    card.className = `${INLINE_CLASS} fta-inline-${teamKind}`;
+
+    if (err) {
+      card.innerHTML = `<div class="fta-row fta-muted">${nicknameSafe}: статистика временно недоступна.</div>`;
+      return card;
+    }
+
     const lt = (rd.stats && rd.stats.lifetime) || {};
-    const level = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.skill_level) || "?";
-    const elo = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.faceit_elo) || "?";
+    const level = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.skill_level) || null;
+    const elo = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.faceit_elo) || null;
     const kd = num(lt["Average K/D Ratio"]);
     const wr = num(lt["Win Rate %"]);
     const hs = num(lt["Average Headshots %"]);
     const matches = num(lt["Matches"]);
     const mapSeg = findMapSegment(rd.stats && rd.stats.segments, mapName);
     const sideStats = extractSideStats(mapSeg);
+    const { best, worst } = findBestWorstMap(rd.stats && rd.stats.segments);
+    const recentForm = getRecentForm(lt);
+    const extraStats = pickExtraStats(lt);
     const tactic = generateTactic(nickname, lt, mapSeg, mapName);
 
-    const card = document.createElement("div");
-    card.className = "fta-card";
+    const chips = [];
+    if (kd) chips.push(`<div class="fta-chip"><b>${kd.toFixed(2)}</b><span>K/D</span></div>`);
+    if (wr) chips.push(`<div class="fta-chip"><b>${wr.toFixed(0)}%</b><span>Winrate</span></div>`);
+    if (hs) chips.push(`<div class="fta-chip"><b>${hs.toFixed(0)}%</b><span>HS%</span></div>`);
+    if (matches) chips.push(`<div class="fta-chip"><b>${matches}</b><span>Матчей</span></div>`);
+    if (level) chips.push(`<div class="fta-chip"><b>${escapeHtml(level)}</b><span>Level</span></div>`);
+    if (elo) chips.push(`<div class="fta-chip"><b>${escapeHtml(elo)}</b><span>ELO</span></div>`);
 
-    if (err) {
-      card.innerHTML = `
-        <div class="fta-card-head">
-          <img class="fta-avatar" src="${avatar}" onerror="this.style.visibility='hidden'"/>
-          <div class="fta-nick">${nicknameSafe}</div>
-        </div>
-        <div class="fta-error">Статистика временно недоступна — сервер не ответил.</div>
-      `;
-      return card;
+    let html = `<div class="fta-row fta-head"><span class="fta-nick">${nicknameSafe}</span></div>`;
+    if (chips.length) html += `<div class="fta-row fta-chips">${chips.join("")}</div>`;
+
+    if (sideStats) {
+      const parts = [];
+      if (sideStats.ct !== null) parts.push(`CT ${sideStats.ct.toFixed(0)}%`);
+      if (sideStats.t !== null) parts.push(`T ${sideStats.t.toFixed(0)}%`);
+      html += `<div class="fta-row"><span class="fta-row-label">Сторона (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`;
     }
 
-    card.innerHTML = `
-      <div class="fta-card-head">
-        <img class="fta-avatar" src="${avatar}" onerror="this.style.visibility='hidden'"/>
-        <div class="fta-nick-wrap">
-          <div class="fta-nick">${nicknameSafe}</div>
-          <div class="fta-sub">Lvl ${escapeHtml(level)} · ${escapeHtml(elo)} ELO</div>
-        </div>
-      </div>
-      <div class="fta-stats-row">
-        <div class="fta-stat"><span class="fta-stat-val">${kd ? kd.toFixed(2) : "—"}</span><span class="fta-stat-label">K/D</span></div>
-        <div class="fta-stat"><span class="fta-stat-val">${wr ? wr.toFixed(0) + "%" : "—"}</span><span class="fta-stat-label">Winrate</span></div>
-        <div class="fta-stat"><span class="fta-stat-val">${hs ? hs.toFixed(0) + "%" : "—"}</span><span class="fta-stat-label">HS%</span></div>
-        <div class="fta-stat"><span class="fta-stat-val">${matches || "—"}</span><span class="fta-stat-label">Матчей</span></div>
-      </div>
-      ${sideStats ? `
-      <div class="fta-side-row">
-        ${sideStats.ct !== null ? `<span class="fta-side fta-side-ct">CT ${sideStats.ct.toFixed(0)}%</span>` : ""}
-        ${sideStats.t !== null ? `<span class="fta-side fta-side-t">T ${sideStats.t.toFixed(0)}%</span>` : ""}
-      </div>
-      ` : ""}
-      ${teamKind === "own" && showTactics ? `
-      <details class="fta-tactic-wrap">
-        <summary class="fta-tactic-summary">Тактика</summary>
-        <div class="fta-tactic">${escapeHtml(tactic)}</div>
-        <button class="fta-btn fta-insert-btn">Вставить тактику в чат</button>
-      </details>
-      ` : ""}
-    `;
+    if (mapSeg && mapSeg.stats) {
+      const mwr = num(mapSeg.stats["Win Rate %"]);
+      const mMatches = num(mapSeg.stats["Matches"]);
+      if (mMatches > 0) {
+        html += `<div class="fta-row"><span class="fta-row-label">На ${escapeHtml(mapName)}</span><span>${mwr.toFixed(0)}% (${mMatches} матчей)</span></div>`;
+      }
+    }
 
-    if (teamKind === "own" && showTactics) {
+    if (best) {
+      html += `<div class="fta-row"><span class="fta-row-label">Любимая карта</span><span>${escapeHtml(best.label)} — ${best.wr.toFixed(0)}%</span></div>`;
+    }
+    if (worst) {
+      html += `<div class="fta-row"><span class="fta-row-label">Слабая карта</span><span>${escapeHtml(worst.label)} — ${worst.wr.toFixed(0)}%</span></div>`;
+    }
+
+    html += buildRecentFormHtml(recentForm);
+
+    if (ownRecentInfo) {
+      html += `<div class="fta-row"><span class="fta-row-label">Последние ${ownRecentInfo.sample} матчей</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`;
+    }
+
+    if (extraStats.length) {
+      html += `<details class="fta-extra"><summary>Ещё статистика</summary>`;
+      for (const [key, value] of extraStats) {
+        html += `<div class="fta-row fta-row-sm"><span class="fta-row-label">${escapeHtml(key)}</span><span>${escapeHtml(value)}</span></div>`;
+      }
+      html += `</details>`;
+    } else {
+      html += `<div class="fta-row fta-muted fta-row-sm">ADR и рейтинг недоступны в публичном FACEIT API для этого игрока.</div>`;
+    }
+
+    if (teamKind === "own" && settings.showTactics) {
+      html += `
+        <details class="fta-tactic-wrap">
+          <summary>Тактика</summary>
+          <div class="fta-tactic-text">${escapeHtml(tactic)}</div>
+          <button class="fta-insert-btn">Вставить в чат</button>
+        </details>
+      `;
+    }
+
+    card.innerHTML = html;
+
+    if (teamKind === "own" && settings.showTactics) {
       const btn = card.querySelector(".fta-insert-btn");
-      btn.addEventListener("click", () => insertToChat(tactic));
+      if (btn) btn.addEventListener("click", () => insertToChat(tactic));
     }
 
     return card;
   }
 
-  function renderPanel(state) {
-    let panel = document.getElementById(PANEL_ID);
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = PANEL_ID;
-      document.body.appendChild(panel);
+  function injectPlayer(rd, mapName, teamKind, settings, ownRecentInfo) {
+    const anchor = findNicknameElement(rd.roster.nickname);
+    if (!anchor) return null;
+    const container = getInjectionContainer(anchor);
+    const card = buildStatCard(rd, mapName, teamKind, settings, ownRecentInfo);
+    container.appendChild(card);
+    return card;
+  }
+
+  function ensureInjected() {
+    if (!lastMatchState.ready) return;
+    const { own, enemy, mapName, settings, ownRecentByPlayerId } = lastMatchState;
+    for (const rd of own) {
+      if (rd.injectedNode && rd.injectedNode.isConnected) continue;
+      rd.injectedNode = injectPlayer(rd, mapName, "own", settings, ownRecentByPlayerId.get(rd.roster.player_id));
     }
-    panel.innerHTML = "";
-
-    const collapsed = localStorage.getItem(STORAGE_COLLAPSED) === "1";
-    if (collapsed) panel.classList.add("fta-collapsed");
-    else panel.classList.remove("fta-collapsed");
-
-    const header = document.createElement("div");
-    header.className = "fta-header";
-    header.innerHTML = `
-      <span class="fta-title">FACEIT Tactics Assistant</span>
-      <button class="fta-toggle">${collapsed ? "▸" : "▾"}</button>
-    `;
-    header.querySelector(".fta-toggle").addEventListener("click", () => {
-      const isCollapsed = panel.classList.toggle("fta-collapsed");
-      localStorage.setItem(STORAGE_COLLAPSED, isCollapsed ? "1" : "0");
-      header.querySelector(".fta-toggle").textContent = isCollapsed ? "▸" : "▾";
-    });
-    panel.appendChild(header);
-
-    const body = document.createElement("div");
-    body.className = "fta-body";
-    panel.appendChild(body);
-
-    if (state.loading) {
-      body.innerHTML = `<div class="fta-loading">Загружаю данные матча…</div>`;
-      return;
+    for (const rd of enemy) {
+      if (rd.injectedNode && rd.injectedNode.isConnected) continue;
+      rd.injectedNode = injectPlayer(rd, mapName, "enemy", settings, null);
     }
+  }
 
-    if (state.serverDown) {
-      body.innerHTML = `
-        <div class="fta-error">
-          Сервер статистики временно недоступен. Попробуй обновить страницу через минуту —
-          если проблема повторяется, загляни в раздел «Help» настроек расширения.
-        </div>
-        <button class="fta-btn" id="fta-open-options">Открыть настройки</button>
-      `;
-      body.querySelector("#fta-open-options").addEventListener("click", () => {
-        chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" });
-      });
-      return;
-    }
-
-    if (state.error) {
-      body.innerHTML = `<div class="fta-error">Не удалось загрузить матч: ${escapeHtml(state.error)}</div>`;
-      return;
-    }
-
-    if (state.mapName) {
-      const mapEl = document.createElement("div");
-      mapEl.className = "fta-map-banner";
-      mapEl.textContent = `Карта: ${state.mapName}`;
-      body.appendChild(mapEl);
-    }
-
-    if (state.showSummary !== false) {
-      if (state.bestMaps && state.bestMaps.length) {
-        const bm = document.createElement("div");
-        bm.className = "fta-summary";
-        bm.innerHTML = `<b>Сильные карты команды:</b> ${escapeHtml(state.bestMaps.join(", "))}`;
-        body.appendChild(bm);
-      }
-
-      if (state.weakestEnemy) {
-        const we = document.createElement("div");
-        we.className = "fta-summary fta-target";
-        we.innerHTML = `<b>Слабое звено у соперника:</b> ${escapeHtml(state.weakestEnemy.roster.nickname)} — приоритетная цель для давления.`;
-        body.appendChild(we);
-      }
-
-      if (state.headToHead && state.headToHead.length) {
-        const h2h = document.createElement("div");
-        h2h.className = "fta-summary";
-        const lines = state.headToHead
-          .map((e) => `${escapeHtml(e.nickname)}: ${e.wins}-${e.losses} ${e.wins >= e.losses ? "в вашу пользу" : "не в вашу пользу"}`)
-          .join("<br/>");
-        h2h.innerHTML = `<b>Личные встречи с соперниками:</b><br/>${lines}`;
-        body.appendChild(h2h);
-      }
-    }
-
-    const tabs = document.createElement("div");
-    tabs.className = "fta-tabs";
-    tabs.innerHTML = `
-      <button class="fta-tab fta-tab-active" data-team="own">Моя команда</button>
-      <button class="fta-tab" data-team="enemy">Соперник</button>
-    `;
-    body.appendChild(tabs);
-
-    const listOwn = document.createElement("div");
-    listOwn.className = "fta-list";
-    const listEnemy = document.createElement("div");
-    listEnemy.className = "fta-list fta-hidden";
-
-    for (const rd of state.own) listOwn.appendChild(renderPlayerCard(rd, state.mapName, "own", state.showTactics));
-    for (const rd of state.enemy) listEnemy.appendChild(renderPlayerCard(rd, state.mapName, "enemy", state.showTactics));
-
-    body.appendChild(listOwn);
-    body.appendChild(listEnemy);
-
-    tabs.querySelectorAll(".fta-tab").forEach((tabBtn) => {
-      tabBtn.addEventListener("click", () => {
-        tabs.querySelectorAll(".fta-tab").forEach((b) => b.classList.remove("fta-tab-active"));
-        tabBtn.classList.add("fta-tab-active");
-        if (tabBtn.dataset.team === "own") {
-          listOwn.classList.remove("fta-hidden");
-          listEnemy.classList.add("fta-hidden");
-        } else {
-          listEnemy.classList.remove("fta-hidden");
-          listOwn.classList.add("fta-hidden");
-        }
-      });
-    });
+  function clearInjected() {
+    document.querySelectorAll(`.${INLINE_CLASS}`).forEach((el) => el.remove());
   }
 
   // ---------- main flow ----------
 
   async function loadMatch(matchId) {
-    renderPanel({ loading: true });
+    lastMatchState = { ready: false };
 
     const matchRes = await bg({ type: "FETCH_MATCH", matchId });
-
-    if (matchRes.error === "NOT_FOUND") {
-      renderPanel({ error: "Матч не найден." });
-      return;
-    }
     if (matchRes.error) {
-      renderPanel({ serverDown: true });
+      if (matchRes.error !== "NOT_FOUND") toast("Сервер статистики временно недоступен.");
       return;
     }
 
     const match = matchRes.data;
     const mapName = pickCurrentMap(match);
-    currentMap = mapName;
 
     const teams = match.teams || {};
     const factionKeys = Object.keys(teams);
-    if (factionKeys.length < 2) {
-      renderPanel({ error: "Не удалось определить составы команд." });
-      return;
-    }
+    if (factionKeys.length < 2) return;
 
-    // Best-effort: assume faction1 is "own" team (FACEIT usually orders the viewer's team first
-    // when data is fetched with a matching auth context; otherwise both tabs are still available).
+    // Best-effort: assume faction1 is "own" team (both tabs' data is still fetched either way).
     const ownFaction = teams[factionKeys[0]];
     const enemyFaction = teams[factionKeys[1]];
-
     const ownRoster = ownFaction.roster || [];
     const enemyRoster = enemyFaction.roster || [];
 
@@ -513,33 +522,34 @@
 
     const bestMaps = suggestBestMaps(ownData);
     const weakestEnemy = findWeakestLink(enemyData);
-    const { showTactics = true, showSummary = true } = await chrome.storage.sync.get({
-      showTactics: true,
-      showSummary: true
-    });
+    const settings = await chrome.storage.sync.get({ showTactics: true, showSummary: true });
 
-    renderPanel({
+    lastMatchState = {
+      ready: true,
       mapName,
       own: ownData,
       enemy: enemyData,
       bestMaps,
-      weakestEnemy,
-      showTactics,
-      showSummary
-    });
+      weakestEnemy: weakestEnemy ? weakestEnemy.roster.nickname : null,
+      headToHead: [],
+      settings,
+      ownRecentByPlayerId: new Map()
+    };
 
-    const headToHead = showSummary ? await computeHeadToHead(ownData, enemyData) : [];
-    if (currentMatchId === matchId) {
-      renderPanel({
-        mapName,
-        own: ownData,
-        enemy: enemyData,
-        bestMaps,
-        weakestEnemy,
-        showTactics,
-        showSummary,
-        headToHead
-      });
+    ensureInjected();
+
+    if (settings.showSummary) {
+      const { headToHead, ownRecent } = await computeHistoryInsights(ownData, enemyData);
+      if (currentMatchId === matchId) {
+        lastMatchState.headToHead = headToHead;
+        lastMatchState.ownRecentByPlayerId = ownRecent;
+        // Rebuild own-team cards so the "last N matches" line picks up history data.
+        for (const rd of ownData) {
+          if (rd.injectedNode && rd.injectedNode.isConnected) rd.injectedNode.remove();
+          rd.injectedNode = null;
+        }
+        ensureInjected();
+      }
     }
   }
 
@@ -547,15 +557,38 @@
     const href = location.href;
     const matchId = extractMatchId(href);
     if (!matchId) {
-      const panel = document.getElementById(PANEL_ID);
-      if (panel) panel.remove();
-      currentMatchId = null;
+      if (currentMatchId) {
+        clearInjected();
+        currentMatchId = null;
+        lastMatchState = { ready: false };
+      }
       return;
     }
     if (matchId === currentMatchId) return;
+    clearInjected();
     currentMatchId = matchId;
     await loadMatch(matchId);
   }
+
+  // ---------- popup messaging ----------
+
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === "GET_MATCH_SUMMARY") {
+      if (!lastMatchState.ready) {
+        sendResponse({ ready: false });
+        return;
+      }
+      sendResponse({
+        ready: true,
+        mapName: lastMatchState.mapName,
+        bestMaps: lastMatchState.bestMaps,
+        weakestEnemy: lastMatchState.weakestEnemy,
+        headToHead: lastMatchState.headToHead
+      });
+    }
+  });
+
+  // ---------- init ----------
 
   function init() {
     patchHistoryForNavEvents();
@@ -564,11 +597,15 @@
       if (extractMatchId(location.href) !== currentMatchId) checkAndLoad();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "sync" && (changes.showTactics || changes.showSummary) && currentMatchId) {
+        clearInjected();
         loadMatch(currentMatchId);
       }
     });
+
+    recheckTimer = setInterval(ensureInjected, RECHECK_INTERVAL_MS);
     checkAndLoad();
   }
 

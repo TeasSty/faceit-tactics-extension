@@ -31,11 +31,12 @@ async function pingServer() {
   }
 }
 
-// Показываем стартовую панель расширения только один раз, сразу после
-// первой установки — дальше пользователь ничего не настраивает.
+// Показываем короткую страницу приветствия только один раз, сразу после
+// первой установки — дальше всё работает само, без открытия отдельных
+// вкладок или страниц настроек.
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
-    chrome.runtime.openOptionsPage();
+    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
   }
 });
 
@@ -44,11 +45,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   (async () => {
     switch (msg.type) {
-      case "OPEN_OPTIONS": {
-        chrome.runtime.openOptionsPage();
-        sendResponse({ ok: true });
-        break;
-      }
       case "PING_SERVER": {
         sendResponse(await pingServer());
         break;

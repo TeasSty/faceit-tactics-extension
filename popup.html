@@ -2,42 +2,79 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<style>
-  body {
-    margin: 0;
-    width: 260px;
-    background: #0c0d11;
-    color: #e9e9ee;
-    font-family: "Segoe UI", Roboto, -apple-system, sans-serif;
-    padding: 16px;
-  }
-  h1 {
-    font-size: 14px;
-    margin: 0 0 8px;
-    background: linear-gradient(90deg, #f5c94a, #f2a93a);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  p { font-size: 12px; color: #b8bacb; line-height: 1.5; }
-  button {
-    width: 100%;
-    margin-top: 8px;
-    background: linear-gradient(90deg, #f5c94a, #f2a93a);
-    border: none;
-    color: #16171c;
-    font-weight: 700;
-    font-size: 12px;
-    padding: 9px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <h1>FACEIT Tactics Assistant</h1>
-  <p>Открой страницу комнаты матча CS2 на faceit.com — панель с тактиками и статистикой появится справа автоматически. Ничего настраивать не нужно.</p>
-  <button id="openOptions">Открыть настройки</button>
+  <div class="pop">
+    <header class="pop-head">
+      <div class="pop-brand">
+        <span class="pop-mark">FT</span>
+        <div class="pop-brand-text">
+          <span class="pop-title">FACEIT Tactics</span>
+          <span class="pop-version" id="version-tag">v0.1.0</span>
+        </div>
+      </div>
+      <div class="status-pill" id="server-status" title="Статус сервера-прокси">
+        <span class="status-dot" id="server-status-dot"></span>
+        <span id="server-status-text">Проверка…</span>
+      </div>
+    </header>
+
+    <section class="pop-section" id="match-section">
+      <div class="section-label">Текущий матч</div>
+      <div id="match-body" class="match-body">
+        <p class="muted">Открой комнату матча CS2 на FACEIT — сводка появится здесь.</p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <section class="pop-section">
+      <div class="section-label">Настройки</div>
+      <div class="setting-row">
+        <span>Показывать тактику</span>
+        <label class="switch">
+          <input type="checkbox" id="showTactics" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+      <div class="setting-row">
+        <span>Сводка по команде</span>
+        <label class="switch">
+          <input type="checkbox" id="showSummary" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <section class="pop-section">
+      <div class="grid-links">
+        <a class="grid-link" id="discord-link" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24"><circle cx="8.5" cy="12" r="1.4"/><circle cx="15.5" cy="12" r="1.4"/><path d="M6 8.5c1-1 2.4-1.6 3.8-1.9l.5 1M18 8.5c-1-1-2.4-1.6-3.8-1.9l-.5 1M5 9c-1.4 3-1.6 6.4-1 8.5 1.6 1 3.4 1.7 5.2 2l.9-1.6M19 9c1.4 3 1.6 6.4 1 8.5-1.6 1-3.4 1.7-5.2 2l-.9-1.6"/></svg>
+          <span>Discord</span>
+        </a>
+        <button class="grid-link" id="premium-link">
+          <svg viewBox="0 0 24 24"><path d="m12 2 2.9 6.3L21.5 9l-5 4.6L17.8 21 12 17.6 6.2 21l1.3-7.4-5-4.6 6.6-.7L12 2Z" stroke-linejoin="round"/></svg>
+          <span>Premium</span>
+          <span class="mini-badge">скоро</span>
+        </button>
+        <a class="grid-link" id="about-link" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>
+          <span>About</span>
+        </a>
+        <button class="grid-link" id="update-check">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>
+          <span>Обновления</span>
+        </button>
+      </div>
+      <p class="update-status" id="update-status"></p>
+    </section>
+  </div>
+
+  <script src="config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

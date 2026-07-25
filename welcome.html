@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>FACEIT Tactics Assistant — готово к работе</title>
+<link rel="icon" href="icons/icon32.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --card: #15171c;
+    --border: #23262e;
+    --text: #f1f2f5;
+    --text-secondary: #9aa0ac;
+    --accent: #ff5500;
+    --accent-2: #ff8a3d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", Roboto, -apple-system, sans-serif;
+  }
+  .card {
+    max-width: 480px;
+    width: 100%;
+    margin: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 40px 36px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::after {
+    content: "";
+    position: absolute;
+    top: -70px; right: -70px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,85,0,0.18), transparent 70%);
+  }
+  .mark {
+    width: 56px; height: 56px;
+    margin: 0 auto 20px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 20px; color: #16171c;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    position: relative;
+  }
+  h1 { font-size: 20px; margin: 0 0 10px; position: relative; }
+  p { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); margin: 0 0 22px; position: relative; }
+  .btn {
+    display: inline-flex;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 11px 22px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #17181d;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    position: relative;
+  }
+  .hint { margin-top: 18px; font-size: 11.5px; color: #666b76; position: relative; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">FT</div>
+    <h1>Всё уже готово</h1>
+    <p>
+      FACEIT Tactics Assistant настроен и работает — вводить ничего не нужно.
+      Открой комнату матча CS2 на FACEIT, и статистика с тактикой появятся
+      прямо под карточками игроков.
+    </p>
+    <a class="btn" href="https://www.faceit.com/ru/cs2" target="_blank" rel="noopener">Открыть FACEIT</a>
+    <div class="hint">Настройки, статус сервера и Discord — в попапе иконки расширения на панели браузера.</div>
+  </div>
+</body>
+</html>
