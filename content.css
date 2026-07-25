@@ -1,14 +1,28 @@
+:root {
+  --fta-bg-card: transparent;
+  --fta-border: rgba(255, 255, 255, 0.08);
+  --fta-border-soft: rgba(255, 255, 255, 0.05);
+  --fta-text: #e4e6ea;
+  --fta-text-dim: #9599a3;
+  --fta-text-muted: #6b6f78;
+  --fta-accent: #ff5500;
+  --fta-accent-2: #ff8a3d;
+  --fta-accent-soft: rgba(255, 85, 0, 0.1);
+  --fta-good: #6fcf97;
+  --fta-bad: #ff8484;
+}
+
 .fta-inline {
   flex: 1 0 100%;
   width: 100%;
   box-sizing: border-box;
   margin-top: 5px;
   padding: 6px 2px 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--fta-border);
   font-family: "Inter", "Segoe UI", Roboto, -apple-system, sans-serif;
   font-size: 11px;
   line-height: 1.35;
-  color: #cdd0d8;
+  color: var(--fta-text-dim);
 }
 
 .fta-inline-summary {
@@ -16,10 +30,10 @@
 }
 
 .fta-inline-summary .fta-nick {
-  color: #ff8a3d;
+  color: var(--fta-accent-2);
 }
 
-/* ---- header: nick + badges ---- */
+/* ---- header ---- */
 
 .fta-inline .fta-head {
   display: flex;
@@ -32,34 +46,49 @@
 .fta-inline .fta-nick {
   font-weight: 700;
   font-size: 11.5px;
-  color: #f1f2f5;
+  color: var(--fta-text);
   letter-spacing: 0.1px;
 }
 
-.fta-inline .fta-badges {
+/* ---- horizontal stat strip (main visible stats, player cards) ---- */
+
+.fta-inline .fta-stat-strip {
   display: flex;
-  gap: 5px;
-  flex-shrink: 0;
+  align-items: stretch;
+  justify-content: space-between;
+  padding-top: 4px;
 }
 
-.fta-inline .fta-badge {
-  font-size: 9.5px;
-  font-weight: 600;
-  color: #ff8a3d;
-  background: rgba(255, 85, 0, 0.1);
-  padding: 1px 6px;
-  border-radius: 20px;
+.fta-inline .fta-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0 3px;
+  border-left: 1px solid var(--fta-border-soft);
+}
+
+.fta-inline .fta-stat:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+
+.fta-inline .fta-stat b {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--fta-accent-2);
   white-space: nowrap;
 }
 
-/* ---- winrate bar ---- */
-
-.fta-inline .fta-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0 3px;
+.fta-inline .fta-stat span {
+  font-size: 8.5px;
+  color: var(--fta-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
+
+/* ---- bars (map winrate rows) ---- */
 
 .fta-inline .fta-bar {
   flex: 1;
@@ -71,26 +100,24 @@
 
 .fta-inline .fta-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #ff5500, #ff8a3d);
+  background: linear-gradient(90deg, var(--fta-accent), var(--fta-accent-2));
   border-radius: 3px;
 }
 
-.fta-inline .fta-bar-label {
-  font-size: 9.5px;
-  color: #7d8290;
-  flex-shrink: 0;
-}
-
-/* ---- compact info lines ---- */
+/* ---- compact info lines (team card) ---- */
 
 .fta-inline .fta-line {
   padding: 2px 0;
-  color: #cdd0d8;
+  color: var(--fta-text-dim);
 }
 
 .fta-inline .fta-line-muted {
-  color: #7d8290;
+  color: var(--fta-text-muted);
   font-size: 10.5px;
+}
+
+.fta-inline .fta-line b {
+  color: var(--fta-text);
 }
 
 /* ---- recent form dots ---- */
@@ -104,7 +131,7 @@
 }
 
 .fta-inline .fta-row-label {
-  color: #7d8290;
+  color: var(--fta-text-muted);
   flex-shrink: 0;
 }
 
@@ -121,14 +148,14 @@
 }
 
 .fta-dot-w {
-  background: #6fcf97;
+  background: var(--fta-good);
 }
 
 .fta-dot-l {
   background: #4a4d56;
 }
 
-/* ---- error / misc rows (used outside the compact layout too) ---- */
+/* ---- misc rows (error state, "Подробнее" secondary rows) ---- */
 
 .fta-inline .fta-row {
   display: flex;
@@ -136,7 +163,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 2px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--fta-border-soft);
 }
 
 .fta-inline .fta-row:first-child {
@@ -148,17 +175,17 @@
 }
 
 .fta-inline .fta-muted {
-  color: #666b76;
+  color: var(--fta-text-muted);
   font-style: normal;
   justify-content: flex-start;
 }
 
-/* ---- collapsible details (secondary stats + tactic) ---- */
+/* ---- collapsible details (per-player map bars + tactic) ---- */
 
 .fta-inline details.fta-extra,
 .fta-inline details.fta-tactic-wrap {
   margin-top: 3px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--fta-border-soft);
   padding-top: 3px;
 }
 
@@ -166,7 +193,7 @@
   cursor: pointer;
   font-size: 10px;
   font-weight: 600;
-  color: #ff8a3d;
+  color: var(--fta-accent-2);
   list-style: none;
   user-select: none;
   padding: 2px 0;
@@ -185,7 +212,7 @@
 }
 
 .fta-inline .fta-tactic-text {
-  color: #cdd0d8;
+  color: var(--fta-text-dim);
   padding: 5px 0 2px;
   font-size: 11px;
   line-height: 1.45;
@@ -198,7 +225,7 @@
   font-family: inherit;
   font-size: 10.5px;
   font-weight: 700;
-  color: #ff8a3d;
+  color: var(--fta-accent-2);
   background: transparent;
   border: 1px solid rgba(255, 85, 0, 0.35);
   border-radius: 6px;
@@ -207,11 +234,11 @@
 }
 
 .fta-inline .fta-insert-btn:hover {
-  background: rgba(255, 85, 0, 0.12);
+  background: var(--fta-accent-soft);
   color: #ffb26b;
 }
 
-/* ---- team card: map pick/ban rows ---- */
+/* ---- map rows (per-player breakdown + team pick/ban) ---- */
 
 .fta-inline .fta-maps {
   padding: 3px 0;
@@ -225,17 +252,13 @@
 }
 
 .fta-inline .fta-map-label {
-  width: 64px;
+  width: 60px;
   flex-shrink: 0;
   font-size: 10.5px;
-  color: #cdd0d8;
+  color: var(--fta-text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.fta-inline .fta-bar-sm {
-  height: 3px;
 }
 
 .fta-inline .fta-map-pct {
@@ -243,7 +266,7 @@
   flex-shrink: 0;
   text-align: right;
   font-size: 10px;
-  color: #9aa0ac;
+  color: var(--fta-text-dim);
 }
 
 .fta-inline .fta-tag {
@@ -257,22 +280,38 @@
 }
 
 .fta-inline .fta-tag-pick {
-  color: #6fcf97;
+  color: var(--fta-good);
   background: rgba(111, 207, 151, 0.12);
 }
 
 .fta-inline .fta-tag-ban {
-  color: #ff8484;
+  color: var(--fta-bad);
   background: rgba(255, 90, 90, 0.1);
+}
+
+/* ---- veto-stage map winrate badges (best-effort, see content.js) ---- */
+
+.fta-veto-badge {
+  display: inline-block;
+  margin: 0 0 0 6px;
+  padding: 1px 7px;
+  font-family: "Inter", "Segoe UI", Roboto, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fta-accent-2);
+  background: var(--fta-accent-soft);
+  border-radius: 20px;
+  vertical-align: middle;
+  pointer-events: none;
 }
 
 #fta-toast {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  background: #15171c;
+  background: #17181c;
   border: 1px solid rgba(255, 85, 0, 0.35);
-  color: #f1f2f5;
+  color: var(--fta-text);
   font-family: "Inter", "Segoe UI", Roboto, sans-serif;
   font-size: 12px;
   padding: 10px 14px;

@@ -112,16 +112,24 @@
 
   // ---------- stat extraction ----------
 
-  const KNOWN_LIFETIME_KEYS = new Set([
-    "Average K/D Ratio",
-    "Average Headshots %",
-    "Win Rate %",
-    "Matches",
-    "Wins",
-    "Recent Results",
-    "Current Win Streak",
-    "Longest Win Streak"
-  ]);
+  // Действующий соревновательный маппул FACEIT для CS2 — сегменты статистики
+  // FACEIT иногда содержат и другие карты/режимы (Aim Map, Wingman-карты и т.п.),
+  // если игрок в них играл; для анализа матча они бесполезны и только шумят.
+  const COMPETITIVE_MAP_POOL = [
+    "mirage", "inferno", "dust2", "dust ii", "ancient", "nuke", "overpass", "vertigo", "anubis", "train", "cache"
+  ];
+
+  function normalizeMapLabel(label) {
+    return String(label || "")
+      .toLowerCase()
+      .replace(/^de_/, "")
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  function isCompetitiveMap(label) {
+    const norm = normalizeMapLabel(label);
+    return COMPETITIVE_MAP_POOL.some((m) => normalizeMapLabel(m) === norm);
+  }
 
   function findMapSegment(segments, mapName) {
     if (!segments || !mapName) return null;
@@ -141,17 +149,15 @@
     return { ct, t };
   }
 
-  function findBestWorstMap(segments) {
-    if (!segments || !segments.length) return { best: null, worst: null };
-    const withEnough = segments
+  // Карты игрока по действующему маппулу, отсортированные по winrate — используется
+  // и для быстрой строки "любимая/слабая карта", и для баров в "Подробнее".
+  function getPlayerMapList(segments) {
+    if (!segments || !segments.length) return [];
+    return segments
+      .filter((s) => isCompetitiveMap(s.label))
       .map((s) => ({ label: s.label, wr: num(s.stats && s.stats["Win Rate %"]), matches: num(s.stats && s.stats["Matches"]) }))
-      .filter((s) => s.matches >= 3);
-    if (!withEnough.length) return { best: null, worst: null };
-    const sorted = [...withEnough].sort((a, b) => b.wr - a.wr);
-    const best = sorted[0];
-    const worst = sorted[sorted.length - 1];
-    if (best === worst || (best && worst && best.label === worst.label)) return { best, worst: null };
-    return { best, worst };
+      .filter((s) => s.matches >= 3)
+      .sort((a, b) => b.wr - a.wr);
   }
 
   function getRecentForm(lt) {
@@ -160,21 +166,35 @@
     return recent.map((r) => (r === "1" ? "W" : "L"));
   }
 
-  function pickExtraStats(lt) {
-    const extra = [];
-    for (const [key, value] of Object.entries(lt)) {
-      if (KNOWN_LIFETIME_KEYS.has(key)) continue;
-      if (value == null) continue;
-      if (typeof value === "object") continue;
-      extra.push([key, value]);
-      if (extra.length >= 6) break;
-    }
-    return extra;
+  // Общий рендер списка карт барами (переиспользуется и в карточке игрока
+  // внутри "Подробнее", и в командном блоке; теги "пик"/"бан" — только для команды).
+  function buildMapBarsHtml(mapList, { showTags = false, limit = 5 } = {}) {
+    if (!mapList.length) return "";
+    const list = mapList.slice(0, limit);
+    let html = `<div class="fta-maps">`;
+    list.forEach((m, i) => {
+      const wr = m.wr != null ? m.wr : m.avgWr;
+      let tag = "";
+      if (showTags) {
+        if (i === 0) tag = `<span class="fta-tag fta-tag-pick">${ftaT("team_maps_pick")}</span>`;
+        else if (i === list.length - 1 && list.length > 1) tag = `<span class="fta-tag fta-tag-ban">${ftaT("team_maps_ban")}</span>`;
+      }
+      html += `<div class="fta-map-row">
+        <span class="fta-map-label">${escapeHtml(m.label)}</span>
+        <div class="fta-bar"><div class="fta-bar-fill" style="width:${Math.min(wr, 100)}%"></div></div>
+        <span class="fta-map-pct">${wr.toFixed(0)}%</span>
+        ${tag}
+      </div>`;
+    });
+    html += `</div>`;
+    return html;
   }
 
   // ---------- tactic generation ----------
 
-  function generateTactic(nickname, lifetime, mapSegment, mapName, weakestEnemyNickname) {
+  // Тактика — это персональный совет самому игроку (роль, стиль, на что обратить
+  // внимание), а не инструкция против конкретного соперника или гайд по раундам.
+  function generateTactic(nickname, lifetime, mapSegment, mapName) {
     lifetime = lifetime || {};
     const kd = num(lifetime["Average K/D Ratio"]);
     const hs = num(lifetime["Average Headshots %"]);
@@ -184,49 +204,44 @@
 
     const lines = [];
 
-    if (kd >= 1.15) {
-      lines.push(`ты фраг-лидер (K/D ${kd.toFixed(2)}) — бери первый контакт, открывай раунд, команда подстроится под твой вход.`);
+    // роль по сочетанию K/D и HS%
+    if (kd >= 1.15 && hs >= 48) {
+      lines.push("твой профиль — дуэлянт: высокий K/D и точность в голову. Роль на входах и открытии раунда подойдёт лучше, чем поддержка.");
+    } else if (kd >= 1.15) {
+      lines.push(`фраговый показатель сильный (K/D ${kd.toFixed(2)}), но точность в голову средняя — тебе выгоднее набирать через размены и добивания, а не долгие дуэли.`);
     } else if (kd > 0 && kd <= 0.85) {
-      lines.push(`K/D ${kd.toFixed(2)} — не форсируй дуэли в одиночку, играй вторым темпом, отдавай инфо и добивай.`);
+      lines.push(`K/D ${kd.toFixed(2)} ниже среднего — вероятно, тебе комфортнее роль поддержки: отдавай информацию, заходи вторым темпом, не лезь в одиночные дуэли.`);
     } else if (kd > 0) {
-      lines.push(`K/D ${kd.toFixed(2)} — играй по ситуации, разменивайся, не лезь в неравные дуэли.`);
+      lines.push(`K/D ${kd.toFixed(2)} — играй по ситуации, не форсируй размены там, где нет явного преимущества.`);
     }
 
     if (hs >= 52) {
-      lines.push(`HS% ${hs.toFixed(0)} — доверяй прицелу в упор, спокойно дуэлься на ближней дистанции.`);
+      lines.push(`HS% ${hs.toFixed(0)} — твоя сильная сторона это точность на ближней-средней дистанции, доверяй прицелу в упор.`);
     } else if (hs > 0 && hs < 35) {
-      lines.push(`HS% ${hs.toFixed(0)} — избегай долгих спрей-файтов издалека, лучше короткие дистанции и утилити перед входом.`);
+      lines.push(`HS% ${hs.toFixed(0)} невысокий — тебе стоит избегать долгих спрей-файтов издалека, лучше сокращай дистанцию и используй утилити перед входом.`);
     }
 
-    if (mapName) {
-      if (mapSegment && mapSegment.stats) {
-        const mwr = num(mapSegment.stats["Win Rate %"]);
-        const mMatches = num(mapSegment.stats["Matches"]);
-        if (mMatches >= 5) {
-          if (mwr >= 55) {
-            lines.push(`на ${mapName} winrate ${mwr.toFixed(0)}% (${mMatches} матчей) — это твоя карта, бери инициативу.`);
-          } else if (mwr > 0 && mwr <= 40) {
-            lines.push(`на ${mapName} winrate ${mwr.toFixed(0)}% — играй аккуратно, полагайся на коллы и сетапы команды.`);
-          } else {
-            lines.push(`на ${mapName} статистика средняя (${mwr.toFixed(0)}%) — играй по стандартному плану.`);
-          }
-        } else {
-          lines.push(`на ${mapName} у тебя мало сыгранных матчей — играй по коллам, не изобретай.`);
+    if (mapName && mapSegment && mapSegment.stats) {
+      const mwr = num(mapSegment.stats["Win Rate %"]);
+      const mMatches = num(mapSegment.stats["Matches"]);
+      if (mMatches >= 5) {
+        if (mwr >= 55) {
+          lines.push(`на ${mapName} у тебя winrate ${mwr.toFixed(0)}% (${mMatches} матчей) — это твоя карта, можешь смелее брать инициативу на себя.`);
+        } else if (mwr > 0 && mwr <= 40) {
+          lines.push(`на ${mapName} winrate всего ${mwr.toFixed(0)}% — на этой карте лучше сыграть от команды, полагаясь на коллы, а не на личную инициативу.`);
         }
+      } else {
+        lines.push(`на ${mapName} у тебя мало сыгранных матчей — не изобретай, играй по коллам, пока не освоишься.`);
       }
     }
 
     if (curStreak >= 3) {
-      lines.push(`серия из ${curStreak} побед подряд — ты в форме, не сбавляй темп.`);
+      lines.push(`серия из ${curStreak} побед подряд — ты в форме, играй уверенно и не меняй то, что работает.`);
     } else if (recent.length >= 4 && recentWins <= 1) {
-      lines.push(`последние матчи не идут — не тильтуй, играй проще, без лишнего риска.`);
+      lines.push("последние матчи не идут — постарайся не тильтовать, начни с простой, аккуратной игры без лишнего риска.");
     }
 
-    if (!lines.length) lines.push("играй по плану команды, разменивайся на входах.");
-
-    if (weakestEnemyNickname) {
-      lines.push(`приоритетная цель — ${weakestEnemyNickname} (слабее по статистике), дави на него первым.`);
-    }
+    if (!lines.length) lines.push("стабильная статистика без явных перекосов — играй свою обычную роль в команде.");
 
     return `${nickname}, ${lines.join(" ")}`;
   }
@@ -278,6 +293,7 @@
     for (const rd of ownData) {
       const segs = (rd.stats && rd.stats.segments) || [];
       for (const s of segs) {
+        if (!isCompetitiveMap(s.label)) continue;
         const wr = num(s.stats && s.stats["Win Rate %"]);
         const m = num(s.stats && s.stats["Matches"]);
         if (m < 3) continue;
@@ -454,6 +470,60 @@
     return walker.nextNode();
   }
 
+  // Тот же приём точного совпадения текста, что и для ников — используется для
+  // бейджей винрейта рядом с названиями карт на этапе вето. Это самая хрупкая
+  // часть расширения: у нас нет доступа к реальной вёрстке live-виджета бана
+  // карт, поэтому это best-effort попытка, которая только добавляет маленький
+  // бейдж РЯДОМ с найденным текстом и никогда не трогает сам элемент —
+  // сломать интерактивность вето она не может, а просто не сработать может.
+  function findTextElement(text, usedSet) {
+    if (!text) return null;
+    const target = text.trim().toLowerCase();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+      acceptNode(el) {
+        if (el.closest && el.closest(`.${INLINE_CLASS}`)) return NodeFilter.FILTER_REJECT;
+        if (usedSet && usedSet.has(el)) return NodeFilter.FILTER_SKIP;
+        if (el.children.length > 0) return NodeFilter.FILTER_SKIP;
+        const t = (el.textContent || "").trim().toLowerCase();
+        return t === target ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    return walker.nextNode();
+  }
+
+  let vetoBadgeNodes = [];
+
+  function clearVetoBadges() {
+    vetoBadgeNodes.forEach((el) => el.isConnected && el.remove());
+    vetoBadgeNodes = [];
+  }
+
+  function ensureVetoBadges() {
+    if (!lastMatchState.ready || !lastMatchState.settings || !lastMatchState.settings.showSummary) return;
+    if (lastMatchState.mapName) {
+      // Карта уже выбрана — стадия банов позади, бейджи больше не нужны.
+      if (vetoBadgeNodes.length) clearVetoBadges();
+      return;
+    }
+    if (vetoBadgeNodes.some((el) => el.isConnected)) return;
+
+    const mapStats = computeTeamMapStats(lastMatchState.own);
+    if (mapStats.length < 2) return;
+
+    clearVetoBadges();
+    const used = new Set();
+    for (const m of mapStats) {
+      const el = findTextElement(m.label, used);
+      if (!el) continue;
+      used.add(el);
+      const badge = document.createElement("span");
+      badge.className = `${INLINE_CLASS} fta-veto-badge`;
+      badge.textContent = `${m.avgWr.toFixed(0)}%`;
+      el.insertAdjacentElement("afterend", badge);
+      vetoBadgeNodes.push(badge);
+    }
+  }
+
   function getInjectionContainer(anchorEl) {
     let el = anchorEl;
     for (let i = 0; i < 3 && el.parentElement; i++) el = el.parentElement;
@@ -491,65 +561,43 @@
     const matches = num(lt["Matches"]);
     const mapSeg = findMapSegment(rd.stats && rd.stats.segments, mapName);
     const sideStats = extractSideStats(mapSeg);
-    const { best, worst } = findBestWorstMap(rd.stats && rd.stats.segments);
+    const mapList = getPlayerMapList(rd.stats && rd.stats.segments);
     const recentForm = getRecentForm(lt);
-    const extraStats = pickExtraStats(lt);
-    const weakestEnemyNickname = teamKind === "own" ? lastMatchState.weakestEnemy : null;
-    const tactic = generateTactic(nickname, lt, mapSeg, mapName, weakestEnemyNickname);
+    const tactic = generateTactic(nickname, lt, mapSeg, mapName);
 
-    // ---- header: nick + level/ELO badges, one line ----
-    let html = `<div class="fta-row fta-head">
-      <span class="fta-nick">${nicknameSafe}</span>
-      <span class="fta-badges">
-        ${level ? `<span class="fta-badge">${ftaT("card_level")} ${escapeHtml(level)}</span>` : ""}
-        ${elo ? `<span class="fta-badge">${escapeHtml(elo)} ${ftaT("card_elo")}</span>` : ""}
-      </span>
-    </div>`;
-
-    // ---- winrate as a thin bar ----
-    if (wr) {
-      html += `<div class="fta-bar-row">
-        <div class="fta-bar"><div class="fta-bar-fill" style="width:${Math.min(wr, 100)}%"></div></div>
-        <span class="fta-bar-label">${wr.toFixed(0)}% ${ftaT("card_winrate")}</span>
-      </div>`;
-    }
-
-    // ---- primary line: K/D · HS% · matches (+ current map if voted) ----
-    const primary = [];
-    if (kd) primary.push(`${ftaT("card_kd")} ${kd.toFixed(2)}`);
-    if (hs) primary.push(`${ftaT("card_hs")} ${hs.toFixed(0)}%`);
-    if (matches) primary.push(`${matches} ${ftaT("card_matches")}`);
-    if (mapSeg && mapSeg.stats && num(mapSeg.stats["Matches"]) > 0) {
-      primary.push(`${escapeHtml(mapName)} ${num(mapSeg.stats["Win Rate %"]).toFixed(0)}%`);
-    }
-    if (primary.length) html += `<div class="fta-line">${primary.join(" · ")}</div>`;
-
-    // ---- maps line: favorite / weak, one line ----
-    const mapBits = [];
-    if (best) mapBits.push(`${escapeHtml(best.label)} ${best.wr.toFixed(0)}%`);
-    if (worst) mapBits.push(`${escapeHtml(worst.label)} ${worst.wr.toFixed(0)}%`);
-    if (mapBits.length) html += `<div class="fta-line fta-line-muted">${mapBits.join(" · ")}</div>`;
+    // ---- header: just the nickname ----
+    let html = `<div class="fta-row fta-head"><span class="fta-nick">${nicknameSafe}</span></div>`;
 
     html += buildRecentFormHtml(recentForm);
 
-    // ---- secondary details, collapsed by default ----
-    const moreRows = [];
+    // ---- main stats, one horizontal strip at the bottom of the visible card ----
+    const stats = [];
+    if (kd) stats.push([ftaT("card_kd"), kd.toFixed(2)]);
+    if (hs) stats.push([ftaT("card_hs"), `${hs.toFixed(0)}%`]);
+    if (wr) stats.push([ftaT("card_winrate"), `${wr.toFixed(0)}%`]);
+    if (matches) stats.push([ftaT("card_matches"), matches]);
+    if (elo) stats.push([ftaT("card_elo"), escapeHtml(elo)]);
+    if (level) stats.push([ftaT("card_level"), escapeHtml(level)]);
+    if (stats.length) {
+      html += `<div class="fta-stat-strip">${stats
+        .map(([label, value]) => `<div class="fta-stat"><b>${value}</b><span>${label}</span></div>`)
+        .join("")}</div>`;
+    }
+
+    // ---- "Подробнее": this player's own map breakdown, not raw API leftovers ----
+    const moreParts = [];
+    if (mapList.length) moreParts.push(buildMapBarsHtml(mapList, { limit: 4 }));
     if (sideStats) {
       const parts = [];
       if (sideStats.ct !== null) parts.push(`CT ${sideStats.ct.toFixed(0)}%`);
       if (sideStats.t !== null) parts.push(`T ${sideStats.t.toFixed(0)}%`);
-      moreRows.push([`${ftaT("card_side")} (${escapeHtml(mapName)})`, parts.join(" · ")]);
+      moreParts.push(`<div class="fta-row fta-row-sm"><span class="fta-row-label">${ftaT("card_side")} (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`);
     }
     if (ownRecentInfo) {
-      moreRows.push([ftaT("card_history", { n: ownRecentInfo.sample }), `${ownRecentInfo.wins}-${ownRecentInfo.losses}`]);
+      moreParts.push(`<div class="fta-row fta-row-sm"><span class="fta-row-label">${ftaT("card_history", { n: ownRecentInfo.sample })}</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`);
     }
-    for (const [key, value] of extraStats) {
-      moreRows.push([escapeHtml(key), escapeHtml(value)]);
-    }
-    if (moreRows.length) {
-      html += `<details class="fta-extra"><summary>${ftaT("card_more")}</summary>`;
-      html += moreRows.map(([label, value]) => `<div class="fta-row fta-row-sm"><span class="fta-row-label">${label}</span><span>${value}</span></div>`).join("");
-      html += `</details>`;
+    if (moreParts.length) {
+      html += `<details class="fta-extra"><summary>${ftaT("card_more")}</summary>${moreParts.join("")}</details>`;
     }
 
     if (teamKind === "own" && settings.showTactics) {
@@ -597,19 +645,7 @@
 
     // ---- map pick/ban bars ----
     if (mapStats.length >= 2) {
-      html += `<div class="fta-maps">`;
-      mapStats.forEach((m, i) => {
-        const tag =
-          i === 0 ? `<span class="fta-tag fta-tag-pick">${ftaT("team_maps_pick")}</span>` :
-          i === mapStats.length - 1 ? `<span class="fta-tag fta-tag-ban">${ftaT("team_maps_ban")}</span>` : "";
-        html += `<div class="fta-map-row">
-          <span class="fta-map-label">${escapeHtml(m.label)}</span>
-          <div class="fta-bar fta-bar-sm"><div class="fta-bar-fill" style="width:${Math.min(m.avgWr, 100)}%"></div></div>
-          <span class="fta-map-pct">${m.avgWr.toFixed(0)}%</span>
-          ${tag}
-        </div>`;
-      });
-      html += `</div>`;
+      html += buildMapBarsHtml(mapStats, { showTags: true, limit: 7 });
     }
 
     if (weakestEnemy) html += `<div class="fta-line">${ftaT("popup_match_weakest")}: ${escapeHtml(weakestEnemy)}</div>`;
@@ -663,11 +699,13 @@
       rd.injectedNode = injectPlayer(rd, mapName, "enemy", settings, null);
     }
     ensureTeamSummaryInjected();
+    ensureVetoBadges();
   }
 
   function clearInjected() {
     document.querySelectorAll(`.${INLINE_CLASS}`).forEach((el) => el.remove());
     teamSummaryNode = null;
+    vetoBadgeNodes = [];
   }
 
   // ---------- main flow ----------

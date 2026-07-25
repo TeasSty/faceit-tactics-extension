@@ -1,5 +1,6 @@
 const CHANGELOG = {
   ru: [
+    { v: "0.6.0", text: "Карточка игрока: внизу одна горизонтальная строка с K/D, HS%, Winrate, матчами, ELO и Level. Тактика теперь только про самого игрока (роль, сильные стороны, на что обратить внимание) — без советов против соперника. «Подробнее» показывает карты игрока барами вместо бесполезных сырых полей API. Карты фильтруются по актуальному соревновательному маппулу FACEIT. Добавлены best-effort бейджи винрейта карт на этапе банов." },
     { v: "0.5.0", text: "Карточки игроков сжаты примерно вдвое: только ключевые цифры и бар winrate на виду, остальное — за «Подробнее». Итоги матча убраны из карточек игроков и показываются один раз в командном блоке. Добавлены средние по команде и карты с барами и рекомендацией пик/бан." },
     { v: "0.4.0", text: "Сводка по команде и итоги завершённого матча перенесены со страницы popup прямо на страницу FACEIT — popup теперь только настройки." },
     { v: "0.3.0", text: "Статистика и тактика встроены прямо в страницу FACEIT. Добавлены язык, аналитика завершённого матча и приоритетная цель в тактике." },
@@ -7,6 +8,7 @@ const CHANGELOG = {
     { v: "0.1.0", text: "Первая версия: статистика игроков, персональная тактика, сводка по команде." }
   ],
   en: [
+    { v: "0.6.0", text: "Player card: one horizontal row at the bottom with K/D, HS%, Winrate, matches, ELO and Level. Tactic is now about the player themself (role, strengths, what to watch for) — no more opponent-targeting advice. Details now shows the player's own map breakdown with bars instead of raw API leftovers. Maps are filtered to FACEIT's current competitive map pool. Added best-effort map-winrate badges during the ban stage." },
     { v: "0.5.0", text: "Player cards are roughly half the height now: only the key numbers and a winrate bar stay visible, everything else lives under Details. Finished-match results moved out of player cards into the team block. Added team averages and a map list with bars and a pick/ban recommendation." },
     { v: "0.4.0", text: "Team summary and finished-match analytics moved from the popup onto the FACEIT page itself — the popup is settings-only now." },
     { v: "0.3.0", text: "Stats and tactics live inside the FACEIT page. Added language switch, finished-match analytics, and a priority-target tactic." },
