@@ -8,10 +8,17 @@ async function apiGet(path) {
       headers: EXTENSION_SHARED_KEY ? { "X-Extension-Key": EXTENSION_SHARED_KEY } : {}
     });
     if (!res.ok) {
-      if (res.status === 403) return { error: "FORBIDDEN", status: res.status };
+      // Воркер отдаёт JSON-тело вида { "error": "FORBIDDEN_KEY" } даже на 4xx/5xx —
+      // используем его как есть, это конкретнее, чем просто HTTP-статус.
+      let detail = null;
+      try {
+        const body = await res.clone().json();
+        detail = body && body.error;
+      } catch (e) {
+        /* тело не JSON — оставляем detail пустым */
+      }
       if (res.status === 404) return { error: "NOT_FOUND", status: res.status };
-      if (res.status === 500) return { error: "SERVER_ERROR", status: res.status };
-      return { error: "HTTP_ERROR", status: res.status };
+      return { error: detail || "HTTP_ERROR", status: res.status };
     }
     const data = await res.json();
     return { data };
