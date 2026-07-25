@@ -1,10 +1,12 @@
 (() => {
   const INLINE_CLASS = "fta-inline";
   const RECHECK_INTERVAL_MS = 3000;
+  const FINISHED_POLL_INTERVAL_MS = 20000;
 
   let currentMatchId = null;
   let lastMatchState = { ready: false };
   let recheckTimer = null;
+  let teamSummaryNode = null;
 
   // ---------- generic helpers ----------
 
@@ -547,6 +549,45 @@
     return card;
   }
 
+  function buildTeamSummaryCard() {
+    const { mapName, bestMaps, weakestEnemy, headToHead, finished } = lastMatchState;
+    const rows = [];
+
+    if (mapName) rows.push([ftaT("popup_match_map"), escapeHtml(mapName)]);
+    if (bestMaps && bestMaps.length) rows.push([ftaT("popup_match_bestmaps"), escapeHtml(bestMaps.join(", "))]);
+    if (weakestEnemy) rows.push([ftaT("popup_match_weakest"), escapeHtml(weakestEnemy)]);
+    if (headToHead && headToHead.length) {
+      const h2h = headToHead.map((e) => `${escapeHtml(e.nickname)} ${e.wins}-${e.losses}`).join(" · ");
+      rows.push([ftaT("popup_match_h2h"), h2h]);
+    }
+    if (finished) {
+      if (finished.mvp) rows.push([ftaT("popup_finished_mvp"), escapeHtml(finished.mvp)]);
+      if (finished.weak) rows.push([ftaT("popup_finished_weak"), escapeHtml(finished.weak)]);
+    }
+
+    if (!rows.length) return null;
+
+    const card = document.createElement("div");
+    card.className = `${INLINE_CLASS} fta-inline-summary`;
+    let html = `<div class="fta-row fta-head"><span class="fta-nick">${ftaT(finished ? "popup_finished_title" : "popup_section_match")}</span></div>`;
+    html += rows.map(([label, value]) => `<div class="fta-row"><span class="fta-row-label">${label}</span><span>${value}</span></div>`).join("");
+    card.innerHTML = html;
+    return card;
+  }
+
+  function ensureTeamSummaryInjected() {
+    if (teamSummaryNode && teamSummaryNode.isConnected) return;
+    if (!lastMatchState.ready || !lastMatchState.settings || !lastMatchState.settings.showSummary) return;
+
+    const anchorRd = lastMatchState.own.find((rd) => rd.injectedNode && rd.injectedNode.isConnected);
+    if (!anchorRd) return;
+
+    const card = buildTeamSummaryCard();
+    if (!card) return;
+    anchorRd.injectedNode.parentElement.insertBefore(card, anchorRd.injectedNode);
+    teamSummaryNode = card;
+  }
+
   function injectPlayer(rd, mapName, teamKind, settings, ownRecentInfo) {
     const anchor = findNicknameElement(rd.roster.nickname);
     if (!anchor) return null;
@@ -567,10 +608,12 @@
       if (rd.injectedNode && rd.injectedNode.isConnected) continue;
       rd.injectedNode = injectPlayer(rd, mapName, "enemy", settings, null);
     }
+    ensureTeamSummaryInjected();
   }
 
   function clearInjected() {
     document.querySelectorAll(`.${INLINE_CLASS}`).forEach((el) => el.remove());
+    teamSummaryNode = null;
   }
 
   // ---------- main flow ----------
@@ -639,11 +682,31 @@
     }
   }
 
+  // FACEIT обычно оставляет пользователя на той же странице комнаты после
+  // окончания матча (matchId в URL не меняется), поэтому переход в статус
+  // FINISHED не поймать через слежение за навигацией — опрашиваем статус
+  // отдельным нечастым таймером, пока итоги ещё не получены.
+  async function pollFinishedStatus() {
+    if (!currentMatchId || !lastMatchState.ready || lastMatchState.finished) return;
+    const matchId = currentMatchId;
+    const matchRes = await bg({ type: "FETCH_MATCH", matchId });
+    if (matchRes.error || !matchRes.data) return;
+    if (!/finished/i.test(matchRes.data.status || "")) return;
+
+    const finished = await computeFinishedSummary(matchId, lastMatchState.own, lastMatchState.enemy);
+    if (finished && currentMatchId === matchId) {
+      lastMatchState.finished = finished;
+      rebuildInjected([...lastMatchState.own, ...lastMatchState.enemy]);
+    }
+  }
+
   function rebuildInjected(rosterData) {
     for (const rd of rosterData) {
       if (rd.injectedNode && rd.injectedNode.isConnected) rd.injectedNode.remove();
       rd.injectedNode = null;
     }
+    if (teamSummaryNode && teamSummaryNode.isConnected) teamSummaryNode.remove();
+    teamSummaryNode = null;
     ensureInjected();
   }
 
@@ -663,27 +726,6 @@
     currentMatchId = matchId;
     await loadMatch(matchId);
   }
-
-  // ---------- popup messaging ----------
-
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg && msg.type === "GET_MATCH_SUMMARY") {
-      if (!lastMatchState.ready) {
-        sendResponse({ ready: false });
-        return;
-      }
-      sendResponse({
-        ready: true,
-        mapName: lastMatchState.mapName,
-        bestMaps: lastMatchState.bestMaps,
-        weakestEnemy: lastMatchState.weakestEnemy,
-        headToHead: lastMatchState.headToHead,
-        finished: lastMatchState.finished
-          ? { mvp: lastMatchState.finished.mvp, weak: lastMatchState.finished.weak }
-          : null
-      });
-    }
-  });
 
   // ---------- init ----------
 
@@ -710,6 +752,7 @@
     });
 
     recheckTimer = setInterval(ensureInjected, RECHECK_INTERVAL_MS);
+    setInterval(pollFinishedStatus, FINISHED_POLL_INTERVAL_MS);
     checkAndLoad();
   }
 

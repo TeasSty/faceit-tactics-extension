@@ -11,6 +11,14 @@
   color: #cdd0d8;
 }
 
+.fta-inline-summary {
+  border-top: 1px solid rgba(255, 85, 0, 0.22);
+}
+
+.fta-inline-summary .fta-nick {
+  color: #ff8a3d;
+}
+
 .fta-inline .fta-row {
   display: flex;
   align-items: center;

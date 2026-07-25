@@ -1,11 +1,13 @@
 const CHANGELOG = {
   ru: [
-    { v: "0.3.0", text: "Статистика и тактика теперь встроены прямо в страницу FACEIT. Popup стал единственным местом настроек, добавлены язык, аналитика завершённого матча и приоритетная цель в тактике." },
+    { v: "0.4.0", text: "Сводка по команде и итоги завершённого матча перенесены со страницы popup прямо на страницу FACEIT — popup теперь только настройки." },
+    { v: "0.3.0", text: "Статистика и тактика встроены прямо в страницу FACEIT. Добавлены язык, аналитика завершённого матча и приоритетная цель в тактике." },
     { v: "0.2.0", text: "FACEIT API ключ перенесён на собственный сервер — пользователю больше не нужно ничего вводить." },
     { v: "0.1.0", text: "Первая версия: статистика игроков, персональная тактика, сводка по команде." }
   ],
   en: [
-    { v: "0.3.0", text: "Stats and tactics now live inside the FACEIT page itself. The popup is the single settings surface — added language switch, finished-match analytics, and a priority-target tactic." },
+    { v: "0.4.0", text: "Team summary and finished-match analytics moved from the popup onto the FACEIT page itself — the popup is settings-only now." },
+    { v: "0.3.0", text: "Stats and tactics live inside the FACEIT page. Added language switch, finished-match analytics, and a priority-target tactic." },
     { v: "0.2.0", text: "The FACEIT API key moved to a private server — nothing to enter anymore." },
     { v: "0.1.0", text: "First version: player stats, personal tactics, team summary." }
   ]
@@ -14,9 +16,7 @@ const CHANGELOG = {
 const cfg = typeof FTA_CONFIG !== "undefined" ? FTA_CONFIG : {};
 
 function applyStaticTexts() {
-  document.getElementById("label-match").textContent = ftaT("popup_section_match");
-  document.getElementById("match-empty-text").textContent = ftaT("popup_match_empty");
-  document.getElementById("label-finished").textContent = ftaT("popup_finished_title");
+  document.getElementById("pop-hint").textContent = ftaT("popup_hint");
   document.getElementById("label-features").textContent = ftaT("popup_section_features");
   document.getElementById("label-tactic").textContent = ftaT("popup_toggle_tactic");
   document.getElementById("label-summary").textContent = ftaT("popup_toggle_summary");
@@ -120,42 +120,6 @@ async function main() {
   } else {
     aboutLink.addEventListener("click", (e) => e.preventDefault());
     reportLink.addEventListener("click", (e) => e.preventDefault());
-  }
-
-  // current match summary
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tab = tabs[0];
-    if (!tab || !tab.id) return;
-    chrome.tabs.sendMessage(tab.id, { type: "GET_MATCH_SUMMARY" }, (res) => {
-      if (chrome.runtime.lastError || !res || !res.ready) return;
-      renderMatchSummary(res);
-    });
-  });
-}
-
-function renderMatchSummary(state) {
-  const lines = [];
-  if (state.mapName) lines.push([ftaT("popup_match_map"), escapeHtml(state.mapName)]);
-  if (state.bestMaps && state.bestMaps.length) lines.push([ftaT("popup_match_bestmaps"), escapeHtml(state.bestMaps.join(", "))]);
-  if (state.weakestEnemy) lines.push([ftaT("popup_match_weakest"), escapeHtml(state.weakestEnemy)]);
-  if (state.headToHead && state.headToHead.length) {
-    const h2h = state.headToHead.map((e) => `${escapeHtml(e.nickname)} ${e.wins}-${e.losses}`).join(" · ");
-    lines.push([ftaT("popup_match_h2h"), h2h]);
-  }
-
-  const matchBody = document.getElementById("match-body");
-  if (lines.length) {
-    matchBody.innerHTML = lines.map(([label, value]) => `<div class="match-line"><span>${label}</span><b>${value}</b></div>`).join("");
-  }
-
-  if (state.finished && (state.finished.mvp || state.finished.weak)) {
-    const section = document.getElementById("finished-section");
-    const body = document.getElementById("finished-body");
-    const flines = [];
-    if (state.finished.mvp) flines.push([ftaT("popup_finished_mvp"), escapeHtml(state.finished.mvp)]);
-    if (state.finished.weak) flines.push([ftaT("popup_finished_weak"), escapeHtml(state.finished.weak)]);
-    body.innerHTML = flines.map(([label, value]) => `<div class="match-line"><span>${label}</span><b>${value}</b></div>`).join("");
-    section.hidden = false;
   }
 }
 
