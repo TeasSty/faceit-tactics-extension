@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "FACEIT Tactics Assistant",
+  "name": "__MSG_extName__",
   "version": "0.1.0",
-  "description": "Персональные тактики, статистика игроков и сводка по команде прямо в комнате матча FACEIT.",
+  "description": "__MSG_extDescription__",
   "default_locale": "ru",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage"],
   "host_permissions": [
     "https://open.faceit.com/*",
     "https://www.faceit.com/*"
@@ -24,9 +24,21 @@
       "run_at": "document_idle"
     }
   ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "FACEIT Tactics Assistant"
+    "default_title": "FACEIT Tactics Assistant",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_page": "options.html"
 }

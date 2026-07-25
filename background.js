@@ -1,7 +1,9 @@
 const API_BASE = "https://open.faceit.com/data/v4";
 
 async function getApiKey() {
-  const { faceitApiKey } = await chrome.storage.sync.get("faceitApiKey");
+  // Ключ хранится в storage.local (не синхронизируется через аккаунт Google) —
+  // это личный секрет пользователя, ему незачем покидать устройство.
+  const { faceitApiKey } = await chrome.storage.local.get("faceitApiKey");
   return faceitApiKey || "";
 }
 
@@ -29,6 +31,15 @@ async function apiGet(path) {
     return { error: "NETWORK_ERROR", message: String(e) };
   }
 }
+
+// Открываем страницу настроек только один раз — сразу после первой установки,
+// чтобы пользователь сразу увидел, куда вставить API-ключ. При апдейтах и
+// перезапусках браузера страница настроек сама больше никогда не выскакивает.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    chrome.runtime.openOptionsPage();
+  }
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.type) return;

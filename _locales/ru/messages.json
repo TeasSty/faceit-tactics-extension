@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "FACEIT Tactics Assistant",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Персональные тактики, статистика игроков и сводка по команде прямо в комнате матча FACEIT.",
+    "description": "Extension description"
+  }
+}

@@ -17,6 +17,11 @@
     return Number.isNaN(n) ? def : n;
   }
 
+  const HTML_ESCAPE_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  function escapeHtml(str) {
+    return String(str == null ? "" : str).replace(/[&<>"']/g, (c) => HTML_ESCAPE_MAP[c]);
+  }
+
   function extractMatchId(href) {
     const m = href.match(/\/room\/([^/?#]+)/) || href.match(/\/lobby\/([^/?#]+)/);
     return m ? m[1] : null;
@@ -280,7 +285,8 @@
 
   function renderPlayerCard(rd, mapName, teamKind, showTactics) {
     const nickname = rd.roster.nickname;
-    const avatar = rd.roster.avatar || "";
+    const nicknameSafe = escapeHtml(nickname);
+    const avatar = escapeHtml(rd.roster.avatar || "");
     const err = rd.error;
     const lt = (rd.stats && rd.stats.lifetime) || {};
     const level = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.skill_level) || "?";
@@ -300,7 +306,7 @@
       card.innerHTML = `
         <div class="fta-card-head">
           <img class="fta-avatar" src="${avatar}" onerror="this.style.visibility='hidden'"/>
-          <div class="fta-nick">${nickname}</div>
+          <div class="fta-nick">${nicknameSafe}</div>
         </div>
         <div class="fta-error">Статистика недоступна: настрой API-ключ FACEIT в настройках расширения.</div>
       `;
@@ -311,8 +317,8 @@
       <div class="fta-card-head">
         <img class="fta-avatar" src="${avatar}" onerror="this.style.visibility='hidden'"/>
         <div class="fta-nick-wrap">
-          <div class="fta-nick">${nickname}</div>
-          <div class="fta-sub">Lvl ${level} · ${elo} ELO</div>
+          <div class="fta-nick">${nicknameSafe}</div>
+          <div class="fta-sub">Lvl ${escapeHtml(level)} · ${escapeHtml(elo)} ELO</div>
         </div>
       </div>
       <div class="fta-stats-row">
@@ -330,7 +336,7 @@
       ${teamKind === "own" && showTactics ? `
       <details class="fta-tactic-wrap">
         <summary class="fta-tactic-summary">Тактика</summary>
-        <div class="fta-tactic">${tactic}</div>
+        <div class="fta-tactic">${escapeHtml(tactic)}</div>
         <button class="fta-btn fta-insert-btn">Вставить тактику в чат</button>
       </details>
       ` : ""}
@@ -395,7 +401,7 @@
     }
 
     if (state.error) {
-      body.innerHTML = `<div class="fta-error">Не удалось загрузить матч: ${state.error}</div>`;
+      body.innerHTML = `<div class="fta-error">Не удалось загрузить матч: ${escapeHtml(state.error)}</div>`;
       return;
     }
 
@@ -409,14 +415,14 @@
     if (state.bestMaps && state.bestMaps.length) {
       const bm = document.createElement("div");
       bm.className = "fta-summary";
-      bm.innerHTML = `<b>Сильные карты команды:</b> ${state.bestMaps.join(", ")}`;
+      bm.innerHTML = `<b>Сильные карты команды:</b> ${escapeHtml(state.bestMaps.join(", "))}`;
       body.appendChild(bm);
     }
 
     if (state.weakestEnemy) {
       const we = document.createElement("div");
       we.className = "fta-summary fta-target";
-      we.innerHTML = `<b>Слабое звено у соперника:</b> ${state.weakestEnemy.roster.nickname} — приоритетная цель для давления.`;
+      we.innerHTML = `<b>Слабое звено у соперника:</b> ${escapeHtml(state.weakestEnemy.roster.nickname)} — приоритетная цель для давления.`;
       body.appendChild(we);
     }
 
@@ -424,7 +430,7 @@
       const h2h = document.createElement("div");
       h2h.className = "fta-summary";
       const lines = state.headToHead
-        .map((e) => `${e.nickname}: ${e.wins}-${e.losses} ${e.wins >= e.losses ? "в вашу пользу" : "не в вашу пользу"}`)
+        .map((e) => `${escapeHtml(e.nickname)}: ${e.wins}-${e.losses} ${e.wins >= e.losses ? "в вашу пользу" : "не в вашу пользу"}`)
         .join("<br/>");
       h2h.innerHTML = `<b>Личные встречи с соперниками:</b><br/>${lines}`;
       body.appendChild(h2h);
@@ -553,11 +559,10 @@
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "sync" && (changes.showTactics || changes.faceitApiKey) && currentMatchId) {
-        const matchId = currentMatchId;
-        currentMatchId = null;
-        currentMatchId = matchId;
-        loadMatch(matchId);
+      const relevant =
+        (area === "sync" && changes.showTactics) || (area === "local" && changes.faceitApiKey);
+      if (relevant && currentMatchId) {
+        loadMatch(currentMatchId);
       }
     });
     checkAndLoad();
