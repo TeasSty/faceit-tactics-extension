@@ -194,7 +194,7 @@
 
   // Тактика — это персональный совет самому игроку (роль, стиль, на что обратить
   // внимание), а не инструкция против конкретного соперника или гайд по раундам.
-  function generateTactic(nickname, lifetime, mapSegment, mapName) {
+  function generateTactic(nickname, lifetime, mapSegment, mapName, ownRecentInfo) {
     lifetime = lifetime || {};
     const kd = num(lifetime["Average K/D Ratio"]);
     const hs = num(lifetime["Average Headshots %"]);
@@ -235,7 +235,16 @@
       }
     }
 
-    if (curStreak >= 3) {
+    // Форма по полной истории (до ~30 матчей), если она уже подгружена — точнее,
+    // чем короткий "Recent Results" из lifetime-статистики, и приоритетнее его.
+    if (ownRecentInfo && ownRecentInfo.sample >= 5) {
+      const wr30 = ownRecentInfo.wins / ownRecentInfo.sample;
+      if (wr30 >= 0.6) {
+        lines.push(`в последних ${ownRecentInfo.sample} матчах ${ownRecentInfo.wins}-${ownRecentInfo.losses} — в целом ты выигрываешь чаще, чем проигрываешь, можно играть увереннее.`);
+      } else if (wr30 <= 0.35) {
+        lines.push(`в последних ${ownRecentInfo.sample} матчах ${ownRecentInfo.wins}-${ownRecentInfo.losses} — результаты слабые, не бери на себя лишний риск, дай команде наиграть уверенность.`);
+      }
+    } else if (curStreak >= 3) {
       lines.push(`серия из ${curStreak} побед подряд — ты в форме, играй уверенно и не меняй то, что работает.`);
     } else if (recent.length >= 4 && recentWins <= 1) {
       lines.push("последние матчи не идут — постарайся не тильтовать, начни с простой, аккуратной игры без лишнего риска.");
@@ -553,8 +562,6 @@
     }
 
     const lt = (rd.stats && rd.stats.lifetime) || {};
-    const level = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.skill_level) || null;
-    const elo = (rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.faceit_elo) || null;
     const kd = num(lt["Average K/D Ratio"]);
     const wr = num(lt["Win Rate %"]);
     const hs = num(lt["Average Headshots %"]);
@@ -563,12 +570,11 @@
     const sideStats = extractSideStats(mapSeg);
     const mapList = getPlayerMapList(rd.stats && rd.stats.segments);
     const recentForm = getRecentForm(lt);
-    const tactic = generateTactic(nickname, lt, mapSeg, mapName);
+    const tactic = generateTactic(nickname, lt, mapSeg, mapName, ownRecentInfo);
 
-    // ---- header: just the nickname ----
-    let html = `<div class="fta-row fta-head"><span class="fta-nick">${nicknameSafe}</span></div>`;
-
-    html += buildRecentFormHtml(recentForm);
+    // Ник, ELO и Level уже показывает сама FACEIT прямо над местом вставки —
+    // здесь дублировать их не нужно.
+    let html = buildRecentFormHtml(recentForm);
 
     // ---- main stats, one horizontal strip at the bottom of the visible card ----
     const stats = [];
@@ -576,8 +582,6 @@
     if (hs) stats.push([ftaT("card_hs"), `${hs.toFixed(0)}%`]);
     if (wr) stats.push([ftaT("card_winrate"), `${wr.toFixed(0)}%`]);
     if (matches) stats.push([ftaT("card_matches"), matches]);
-    if (elo) stats.push([ftaT("card_elo"), escapeHtml(elo)]);
-    if (level) stats.push([ftaT("card_level"), escapeHtml(level)]);
     if (stats.length) {
       html += `<div class="fta-stat-strip">${stats
         .map(([label, value]) => `<div class="fta-stat"><b>${value}</b><span>${label}</span></div>`)
@@ -594,7 +598,7 @@
       moreParts.push(`<div class="fta-row fta-row-sm"><span class="fta-row-label">${ftaT("card_side")} (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`);
     }
     if (ownRecentInfo) {
-      moreParts.push(`<div class="fta-row fta-row-sm"><span class="fta-row-label">${ftaT("card_history", { n: ownRecentInfo.sample })}</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`);
+      moreParts.push(`<div class="fta-row fta-row-sm"><span class="fta-row-label">${ftaT("card_history", { n: ownRecentInfo.sample })}</span><span><span class="fta-w">${ownRecentInfo.wins}W</span> · <span class="fta-l">${ownRecentInfo.losses}L</span></span></div>`);
     }
     if (moreParts.length) {
       html += `<details class="fta-extra"><summary>${ftaT("card_more")}</summary>${moreParts.join("")}</details>`;
@@ -650,7 +654,9 @@
 
     if (weakestEnemy) html += `<div class="fta-line">${ftaT("popup_match_weakest")}: ${escapeHtml(weakestEnemy)}</div>`;
     if (headToHead && headToHead.length) {
-      const h2h = headToHead.map((e) => `${escapeHtml(e.nickname)} ${e.wins}-${e.losses}`).join(" · ");
+      const h2h = headToHead
+        .map((e) => `${escapeHtml(e.nickname)}: <span class="fta-w">${e.wins}W</span>-<span class="fta-l">${e.losses}L</span>`)
+        .join(" · ");
       html += `<div class="fta-line fta-line-muted">${ftaT("popup_match_h2h")}: ${h2h}</div>`;
     }
 
@@ -669,12 +675,18 @@
     if (teamSummaryNode && teamSummaryNode.isConnected) return;
     if (!lastMatchState.ready || !lastMatchState.settings || !lastMatchState.settings.showSummary) return;
 
-    const anchorRd = lastMatchState.own.find((rd) => rd.injectedNode && rd.injectedNode.isConnected);
+    // Вставляем перед ВСЕМ контейнером первого найденного игрока (на уровень
+    // выше, чем сама карточка), иначе командный блок оказывается внутри
+    // того же бордера, что и карточка конкретного игрока, и выглядит так,
+    // будто относится только к нему.
+    const anchorRd = lastMatchState.own.find((rd) => rd.injectedContainer && rd.injectedContainer.isConnected);
     if (!anchorRd) return;
+    const parent = anchorRd.injectedContainer.parentElement;
+    if (!parent) return;
 
     const card = buildTeamSummaryCard();
     if (!card) return;
-    anchorRd.injectedNode.parentElement.insertBefore(card, anchorRd.injectedNode);
+    parent.insertBefore(card, anchorRd.injectedContainer);
     teamSummaryNode = card;
   }
 
@@ -684,7 +696,7 @@
     const container = getInjectionContainer(anchor);
     const card = buildStatCard(rd, mapName, teamKind, settings, ownRecentInfo);
     container.appendChild(card);
-    return card;
+    return { card, container };
   }
 
   function ensureInjected() {
@@ -692,11 +704,15 @@
     const { own, enemy, mapName, settings, ownRecentByPlayerId } = lastMatchState;
     for (const rd of own) {
       if (rd.injectedNode && rd.injectedNode.isConnected) continue;
-      rd.injectedNode = injectPlayer(rd, mapName, "own", settings, ownRecentByPlayerId.get(rd.roster.player_id));
+      const result = injectPlayer(rd, mapName, "own", settings, ownRecentByPlayerId.get(rd.roster.player_id));
+      rd.injectedNode = result ? result.card : null;
+      rd.injectedContainer = result ? result.container : null;
     }
     for (const rd of enemy) {
       if (rd.injectedNode && rd.injectedNode.isConnected) continue;
-      rd.injectedNode = injectPlayer(rd, mapName, "enemy", settings, null);
+      const result = injectPlayer(rd, mapName, "enemy", settings, null);
+      rd.injectedNode = result ? result.card : null;
+      rd.injectedContainer = result ? result.container : null;
     }
     ensureTeamSummaryInjected();
     ensureVetoBadges();
@@ -794,10 +810,34 @@
     }
   }
 
+  // Best-effort проверка живого состояния вето (какие карты уже забанены), чтобы
+  // рекомендация пик/бан обновлялась по ходу банов, а не считалась один раз по
+  // всему пулу. Публичный FACEIT Data API не документирует такое поле — voting
+  // в примерах ответа просто null, подтверждённым можно считать только финальный
+  // voting.map.pick (уже используется в pickCurrentMap). Поэтому здесь СОЗНАТЕЛЬНО
+  // ничего не считываем и не выдумываем — функция всегда мгновенно завершается
+  // без эффекта, пока кто-то не подтвердит реальную форму этого поля на живом
+  // матче во время вето (DevTools → Network во время реального бана карт) и не
+  // допишет реальное извлечение вместо этой заглушки.
+  async function pollVetoState() {
+    if (!currentMatchId || !lastMatchState.ready || lastMatchState.mapName) return;
+    const matchRes = await bg({ type: "FETCH_MATCH", matchId: currentMatchId });
+    if (matchRes.error || !matchRes.data) return;
+
+    const voting = matchRes.data.voting;
+    const bannedMaps = null; // TODO: заменить на реальное поле, когда оно будет подтверждено
+    if (!voting || !bannedMaps) return;
+
+    // Не должно выполняться сегодня — оставлено для будущей реализации.
+    lastMatchState.bannedMaps = bannedMaps;
+    ensureVetoBadges();
+  }
+
   function rebuildInjected(rosterData) {
     for (const rd of rosterData) {
       if (rd.injectedNode && rd.injectedNode.isConnected) rd.injectedNode.remove();
       rd.injectedNode = null;
+      rd.injectedContainer = null;
     }
     if (teamSummaryNode && teamSummaryNode.isConnected) teamSummaryNode.remove();
     teamSummaryNode = null;
@@ -847,6 +887,7 @@
 
     recheckTimer = setInterval(ensureInjected, RECHECK_INTERVAL_MS);
     setInterval(pollFinishedStatus, FINISHED_POLL_INTERVAL_MS);
+    setInterval(pollVetoState, FINISHED_POLL_INTERVAL_MS);
     checkAndLoad();
   }
 

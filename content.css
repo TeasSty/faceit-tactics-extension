@@ -10,6 +10,7 @@
   --fta-accent-soft: rgba(255, 85, 0, 0.1);
   --fta-good: #6fcf97;
   --fta-bad: #ff8484;
+  --fta-toggle: #b6bac2;
 }
 
 .fta-inline {
@@ -155,6 +156,16 @@
   background: #4a4d56;
 }
 
+.fta-inline .fta-w {
+  color: var(--fta-good);
+  font-weight: 600;
+}
+
+.fta-inline .fta-l {
+  color: var(--fta-bad);
+  font-weight: 600;
+}
+
 /* ---- misc rows (error state, "Подробнее" secondary rows) ---- */
 
 .fta-inline .fta-row {
@@ -193,7 +204,7 @@
   cursor: pointer;
   font-size: 10px;
   font-weight: 600;
-  color: var(--fta-accent-2);
+  color: var(--fta-toggle);
   list-style: none;
   user-select: none;
   padding: 2px 0;
