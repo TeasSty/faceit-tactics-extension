@@ -3,18 +3,12 @@
   width: 100%;
   box-sizing: border-box;
   margin-top: 6px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
   font-family: "Inter", "Segoe UI", Roboto, -apple-system, sans-serif;
   font-size: 11.5px;
   line-height: 1.4;
   color: #cdd0d8;
-}
-
-.fta-inline-enemy {
-  background: rgba(255, 90, 90, 0.02);
 }
 
 .fta-inline .fta-row {
@@ -99,11 +93,11 @@
 }
 
 .fta-dot-w {
-  background: #3ddc84;
+  background: #6fcf97;
 }
 
 .fta-dot-l {
-  background: #ff5a5a;
+  background: #4a4d56;
 }
 
 .fta-inline details.fta-extra,

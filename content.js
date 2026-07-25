@@ -97,14 +97,14 @@
     const input = findChatInput();
     if (input) {
       setNativeValue(input, text);
-      toast("Тактика вставлена в чат — проверь и нажми отправить.");
+      toast(ftaT("toast_inserted"));
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      toast("Поле чата не найдено — текст скопирован (Ctrl+V в чат).");
+      toast(ftaT("toast_copied"));
     } catch {
-      toast("Не удалось найти чат. Скопируй текст вручную.");
+      toast(ftaT("toast_failed"));
     }
   }
 
@@ -172,7 +172,7 @@
 
   // ---------- tactic generation ----------
 
-  function generateTactic(nickname, lifetime, mapSegment, mapName) {
+  function generateTactic(nickname, lifetime, mapSegment, mapName, weakestEnemyNickname) {
     lifetime = lifetime || {};
     const kd = num(lifetime["Average K/D Ratio"]);
     const hs = num(lifetime["Average Headshots %"]);
@@ -221,6 +221,10 @@
     }
 
     if (!lines.length) lines.push("играй по плану команды, разменивайся на входах.");
+
+    if (weakestEnemyNickname) {
+      lines.push(`приоритетная цель — ${weakestEnemyNickname} (слабее по статистике), дави на него первым.`);
+    }
 
     return `${nickname}, ${lines.join(" ")}`;
   }
@@ -334,6 +338,78 @@
     return { headToHead, ownRecent };
   }
 
+  // ---------- finished match stats ----------
+
+  function matchStatValue(obj, patterns) {
+    if (!obj) return null;
+    for (const key of Object.keys(obj)) {
+      if (patterns.some((p) => p.test(key))) return obj[key];
+    }
+    return null;
+  }
+
+  // Структура /matches/{id}/stats не документирована жёстко для всех регионов,
+  // поэтому парсим мягко: если формат неожиданный, просто не находим данные
+  // и не показываем блок (без ошибок и без выдумывания значений).
+  function parseMatchStats(statsData) {
+    const byId = new Map();
+    try {
+      const rounds = statsData.rounds || [];
+      for (const round of rounds) {
+        const teams = round.teams || [];
+        for (const team of teams) {
+          const players = team.players || [];
+          for (const p of players) {
+            if (p.player_id && p.player_stats) byId.set(p.player_id, p.player_stats);
+          }
+        }
+      }
+    } catch (e) {
+      /* ignore — best-effort */
+    }
+    return byId;
+  }
+
+  async function computeFinishedSummary(matchId, ownData, enemyData) {
+    const statsRes = await bg({ type: "FETCH_MATCH_STATS", matchId });
+    if (statsRes.error || !statsRes.data) return null;
+
+    const byId = parseMatchStats(statsRes.data);
+    if (!byId.size) return null;
+
+    const byPlayerId = new Map();
+    let mvp = null;
+    let mvpScore = -Infinity;
+    let weak = null;
+    let weakScore = Infinity;
+
+    for (const rd of [...ownData, ...enemyData]) {
+      const stats = byId.get(rd.roster.player_id);
+      if (!stats) continue;
+      const kd = num(matchStatValue(stats, [/k\/d/i]));
+      if (!kd) continue;
+      const lt = (rd.stats && rd.stats.lifetime) || {};
+      const avg = num(lt["Average K/D Ratio"]);
+      byPlayerId.set(rd.roster.player_id, { kd, avg });
+    }
+
+    for (const rd of ownData) {
+      const entry = byPlayerId.get(rd.roster.player_id);
+      if (!entry) continue;
+      if (entry.kd > mvpScore) {
+        mvpScore = entry.kd;
+        mvp = rd.roster.nickname;
+      }
+      if (entry.kd < weakScore) {
+        weakScore = entry.kd;
+        weak = rd.roster.nickname;
+      }
+    }
+
+    if (!byPlayerId.size) return null;
+    return { byPlayerId, mvp, weak };
+  }
+
   // ---------- DOM injection ----------
 
   // FACEIT — SPA с обфусцированными классами, поэтому мы ищем не по CSS-селекторам,
@@ -366,7 +442,7 @@
       .slice(0, 10)
       .map((r) => `<span class="fta-dot ${r === "W" ? "fta-dot-w" : "fta-dot-l"}"></span>`)
       .join("");
-    return `<div class="fta-row fta-recent"><span class="fta-row-label">Форма (посл. ${form.length})</span><span class="fta-dots">${dots}</span></div>`;
+    return `<div class="fta-row fta-recent"><span class="fta-row-label">${ftaT("card_form", { n: form.length })}</span><span class="fta-dots">${dots}</span></div>`;
   }
 
   function buildStatCard(rd, mapName, teamKind, settings, ownRecentInfo) {
@@ -394,15 +470,17 @@
     const { best, worst } = findBestWorstMap(rd.stats && rd.stats.segments);
     const recentForm = getRecentForm(lt);
     const extraStats = pickExtraStats(lt);
-    const tactic = generateTactic(nickname, lt, mapSeg, mapName);
+    const weakestEnemyNickname = teamKind === "own" ? lastMatchState.weakestEnemy : null;
+    const tactic = generateTactic(nickname, lt, mapSeg, mapName, weakestEnemyNickname);
+    const finishedEntry = lastMatchState.finished && lastMatchState.finished.byPlayerId.get(rd.roster.player_id);
 
     const chips = [];
-    if (kd) chips.push(`<div class="fta-chip"><b>${kd.toFixed(2)}</b><span>K/D</span></div>`);
-    if (wr) chips.push(`<div class="fta-chip"><b>${wr.toFixed(0)}%</b><span>Winrate</span></div>`);
-    if (hs) chips.push(`<div class="fta-chip"><b>${hs.toFixed(0)}%</b><span>HS%</span></div>`);
-    if (matches) chips.push(`<div class="fta-chip"><b>${matches}</b><span>Матчей</span></div>`);
-    if (level) chips.push(`<div class="fta-chip"><b>${escapeHtml(level)}</b><span>Level</span></div>`);
-    if (elo) chips.push(`<div class="fta-chip"><b>${escapeHtml(elo)}</b><span>ELO</span></div>`);
+    if (kd) chips.push(`<div class="fta-chip"><b>${kd.toFixed(2)}</b><span>${ftaT("card_kd")}</span></div>`);
+    if (wr) chips.push(`<div class="fta-chip"><b>${wr.toFixed(0)}%</b><span>${ftaT("card_winrate")}</span></div>`);
+    if (hs) chips.push(`<div class="fta-chip"><b>${hs.toFixed(0)}%</b><span>${ftaT("card_hs")}</span></div>`);
+    if (matches) chips.push(`<div class="fta-chip"><b>${matches}</b><span>${ftaT("card_matches")}</span></div>`);
+    if (level) chips.push(`<div class="fta-chip"><b>${escapeHtml(level)}</b><span>${ftaT("card_level")}</span></div>`);
+    if (elo) chips.push(`<div class="fta-chip"><b>${escapeHtml(elo)}</b><span>${ftaT("card_elo")}</span></div>`);
 
     let html = `<div class="fta-row fta-head"><span class="fta-nick">${nicknameSafe}</span></div>`;
     if (chips.length) html += `<div class="fta-row fta-chips">${chips.join("")}</div>`;
@@ -411,46 +489,50 @@
       const parts = [];
       if (sideStats.ct !== null) parts.push(`CT ${sideStats.ct.toFixed(0)}%`);
       if (sideStats.t !== null) parts.push(`T ${sideStats.t.toFixed(0)}%`);
-      html += `<div class="fta-row"><span class="fta-row-label">Сторона (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`;
+      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_side")} (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`;
     }
 
     if (mapSeg && mapSeg.stats) {
       const mwr = num(mapSeg.stats["Win Rate %"]);
       const mMatches = num(mapSeg.stats["Matches"]);
       if (mMatches > 0) {
-        html += `<div class="fta-row"><span class="fta-row-label">На ${escapeHtml(mapName)}</span><span>${mwr.toFixed(0)}% (${mMatches} матчей)</span></div>`;
+        html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_onmap")} (${escapeHtml(mapName)})</span><span>${mwr.toFixed(0)}% (${mMatches})</span></div>`;
       }
     }
 
     if (best) {
-      html += `<div class="fta-row"><span class="fta-row-label">Любимая карта</span><span>${escapeHtml(best.label)} — ${best.wr.toFixed(0)}%</span></div>`;
+      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_favmap")}</span><span>${escapeHtml(best.label)} — ${best.wr.toFixed(0)}%</span></div>`;
     }
     if (worst) {
-      html += `<div class="fta-row"><span class="fta-row-label">Слабая карта</span><span>${escapeHtml(worst.label)} — ${worst.wr.toFixed(0)}%</span></div>`;
+      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_worstmap")}</span><span>${escapeHtml(worst.label)} — ${worst.wr.toFixed(0)}%</span></div>`;
     }
 
     html += buildRecentFormHtml(recentForm);
 
     if (ownRecentInfo) {
-      html += `<div class="fta-row"><span class="fta-row-label">Последние ${ownRecentInfo.sample} матчей</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`;
+      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_history", { n: ownRecentInfo.sample })}</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`;
+    }
+
+    if (finishedEntry) {
+      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("popup_finished_title")}</span><span>${ftaT("card_finished_line", { kd: finishedEntry.kd.toFixed(2), avg: finishedEntry.avg ? finishedEntry.avg.toFixed(2) : "—" })}</span></div>`;
     }
 
     if (extraStats.length) {
-      html += `<details class="fta-extra"><summary>Ещё статистика</summary>`;
+      html += `<details class="fta-extra"><summary>${ftaT("card_extra")}</summary>`;
       for (const [key, value] of extraStats) {
         html += `<div class="fta-row fta-row-sm"><span class="fta-row-label">${escapeHtml(key)}</span><span>${escapeHtml(value)}</span></div>`;
       }
       html += `</details>`;
     } else {
-      html += `<div class="fta-row fta-muted fta-row-sm">ADR и рейтинг недоступны в публичном FACEIT API для этого игрока.</div>`;
+      html += `<div class="fta-row fta-muted fta-row-sm">${ftaT("card_no_extra")}</div>`;
     }
 
     if (teamKind === "own" && settings.showTactics) {
       html += `
         <details class="fta-tactic-wrap">
-          <summary>Тактика</summary>
+          <summary>${ftaT("tactic_summary")}</summary>
           <div class="fta-tactic-text">${escapeHtml(tactic)}</div>
-          <button class="fta-insert-btn">Вставить в чат</button>
+          <button class="fta-insert-btn">${ftaT("tactic_insert")}</button>
         </details>
       `;
     }
@@ -498,7 +580,7 @@
 
     const matchRes = await bg({ type: "FETCH_MATCH", matchId });
     if (matchRes.error) {
-      if (matchRes.error !== "NOT_FOUND") toast("Сервер статистики временно недоступен.");
+      if (matchRes.error !== "NOT_FOUND") toast(ftaT("toast_server_down"));
       return;
     }
 
@@ -533,7 +615,8 @@
       weakestEnemy: weakestEnemy ? weakestEnemy.roster.nickname : null,
       headToHead: [],
       settings,
-      ownRecentByPlayerId: new Map()
+      ownRecentByPlayerId: new Map(),
+      finished: null
     };
 
     ensureInjected();
@@ -543,14 +626,25 @@
       if (currentMatchId === matchId) {
         lastMatchState.headToHead = headToHead;
         lastMatchState.ownRecentByPlayerId = ownRecent;
-        // Rebuild own-team cards so the "last N matches" line picks up history data.
-        for (const rd of ownData) {
-          if (rd.injectedNode && rd.injectedNode.isConnected) rd.injectedNode.remove();
-          rd.injectedNode = null;
-        }
-        ensureInjected();
+        rebuildInjected([...ownData, ...enemyData]);
       }
     }
+
+    if (/finished/i.test(match.status || "")) {
+      const finished = await computeFinishedSummary(matchId, ownData, enemyData);
+      if (currentMatchId === matchId && finished) {
+        lastMatchState.finished = finished;
+        rebuildInjected([...ownData, ...enemyData]);
+      }
+    }
+  }
+
+  function rebuildInjected(rosterData) {
+    for (const rd of rosterData) {
+      if (rd.injectedNode && rd.injectedNode.isConnected) rd.injectedNode.remove();
+      rd.injectedNode = null;
+    }
+    ensureInjected();
   }
 
   async function checkAndLoad() {
@@ -583,14 +677,19 @@
         mapName: lastMatchState.mapName,
         bestMaps: lastMatchState.bestMaps,
         weakestEnemy: lastMatchState.weakestEnemy,
-        headToHead: lastMatchState.headToHead
+        headToHead: lastMatchState.headToHead,
+        finished: lastMatchState.finished
+          ? { mvp: lastMatchState.finished.mvp, weak: lastMatchState.finished.weak }
+          : null
       });
     }
   });
 
   // ---------- init ----------
 
-  function init() {
+  async function init() {
+    await ftaInitLang();
+
     patchHistoryForNavEvents();
     window.addEventListener("fta-locationchange", () => setTimeout(checkAndLoad, 300));
     const observer = new MutationObserver(() => {
@@ -600,6 +699,11 @@
 
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "sync" && (changes.showTactics || changes.showSummary) && currentMatchId) {
+        clearInjected();
+        loadMatch(currentMatchId);
+      }
+      if (area === "sync" && changes.lang && currentMatchId) {
+        window.__ftaLang = changes.lang.newValue;
         clearInjected();
         loadMatch(currentMatchId);
       }

@@ -66,6 +66,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse(await apiGet(`/players/${msg.playerId}/history?game=${msg.game || "cs2"}&offset=0&limit=${limit}`));
         break;
       }
+      case "FETCH_MATCH_STATS": {
+        sendResponse(await apiGet(`/matches/${msg.matchId}/stats`));
+        break;
+      }
       default:
         sendResponse({ error: "UNKNOWN_MESSAGE" });
     }
