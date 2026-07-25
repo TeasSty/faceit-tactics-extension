@@ -623,7 +623,11 @@
 
     const matchRes = await bg({ type: "FETCH_MATCH", matchId });
     if (matchRes.error) {
-      if (matchRes.error !== "NOT_FOUND") toast(ftaT("toast_server_down"));
+      if (matchRes.error !== "NOT_FOUND") {
+        const detail = matchRes.status ? `${matchRes.error} ${matchRes.status}` : matchRes.error;
+        toast(`${ftaT("toast_server_down")} (${detail})`);
+        console.warn("[FACEIT Tactics Assistant] FETCH_MATCH failed:", matchRes);
+      }
       return;
     }
 
