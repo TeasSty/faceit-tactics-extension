@@ -200,6 +200,59 @@
   margin-top: 1px;
 }
 
+#fta-panel .fta-side-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+#fta-panel .fta-side {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+#fta-panel .fta-side-ct {
+  color: #7fb8f0;
+  background: rgba(127, 184, 240, 0.1);
+  border: 1px solid rgba(127, 184, 240, 0.25);
+}
+
+#fta-panel .fta-side-t {
+  color: #f2c14e;
+  background: rgba(242, 193, 78, 0.1);
+  border: 1px solid rgba(242, 193, 78, 0.25);
+}
+
+#fta-panel .fta-tactic-wrap {
+  margin-top: 4px;
+}
+
+#fta-panel .fta-tactic-summary {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a9db0;
+  cursor: pointer;
+  padding: 4px 2px;
+  list-style: none;
+  user-select: none;
+}
+
+#fta-panel .fta-tactic-summary::-webkit-details-marker {
+  display: none;
+}
+
+#fta-panel .fta-tactic-summary::before {
+  content: "▸ ";
+  color: #f2c14e;
+}
+
+#fta-panel .fta-tactic-wrap[open] .fta-tactic-summary::before {
+  content: "▾ ";
+}
+
 #fta-panel .fta-tactic {
   font-size: 12px;
   line-height: 1.5;

@@ -46,6 +46,19 @@
   }
   #status { margin-top: 10px; font-size: 12px; color: #7fd08a; min-height: 16px; }
   ol { color: #b8bacb; font-size: 13px; line-height: 1.7; }
+  .fta-opt-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 22px;
+    padding: 12px 14px;
+    background: #16171e;
+    border: 1px solid #2a2d38;
+    border-radius: 8px;
+  }
+  .fta-opt-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #f2c14e; }
+  .fta-opt-row label { margin: 0; font-size: 13px; color: #e9e9ee; cursor: pointer; }
+  .fta-opt-hint { font-size: 11px; color: #7d8094; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -63,6 +76,12 @@
   <input type="text" id="apiKey" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" />
   <button id="save">Сохранить</button>
   <div id="status"></div>
+
+  <div class="fta-opt-row">
+    <input type="checkbox" id="showTactics" />
+    <label for="showTactics">Показывать персональную тактику для игроков</label>
+  </div>
+  <div class="fta-opt-hint">Если выключить — под игроками своей команды останется только статистика, без блока тактики и кнопки вставки в чат.</div>
 
   <script src="options.js"></script>
 </body>
