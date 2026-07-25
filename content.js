@@ -253,22 +253,44 @@
     return null;
   }
 
-  function suggestBestMaps(rosterData) {
-    const counts = {};
-    for (const rd of rosterData) {
+  function computeTeamAverages(ownData) {
+    const vals = { elo: [], level: [], kd: [], wr: [] };
+    for (const rd of ownData) {
+      const lt = (rd.stats && rd.stats.lifetime) || {};
+      const elo = rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.faceit_elo;
+      const level = rd.player && rd.player.games && rd.player.games.cs2 && rd.player.games.cs2.skill_level;
+      if (elo) vals.elo.push(num(elo));
+      if (level) vals.level.push(num(level));
+      const kd = num(lt["Average K/D Ratio"]);
+      const wr = num(lt["Win Rate %"]);
+      if (kd) vals.kd.push(kd);
+      if (wr) vals.wr.push(wr);
+    }
+    const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+    return { elo: avg(vals.elo), level: avg(vals.level), kd: avg(vals.kd), wr: avg(vals.wr) };
+  }
+
+  // Средний winrate команды по каждой карте, где хотя бы у одного игрока есть
+  // достаточно данных (>=3 матча) — используется для рекомендации пика/бана.
+  function computeTeamMapStats(ownData) {
+    const byMap = new Map(); // label -> array of per-player winrates
+
+    for (const rd of ownData) {
       const segs = (rd.stats && rd.stats.segments) || [];
       for (const s of segs) {
         const wr = num(s.stats && s.stats["Win Rate %"]);
-        const matches = num(s.stats && s.stats["Matches"]);
-        if (matches >= 5 && wr >= 55) {
-          counts[s.label] = (counts[s.label] || 0) + 1;
-        }
+        const m = num(s.stats && s.stats["Matches"]);
+        if (m < 3) continue;
+        if (!byMap.has(s.label)) byMap.set(s.label, []);
+        byMap.get(s.label).push(wr);
       }
     }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([map, votes]) => `${map} (${votes} сильных игрока)`);
+
+    const list = Array.from(byMap.entries())
+      .map(([label, wrs]) => ({ label, avgWr: wrs.reduce((a, b) => a + b, 0) / wrs.length }))
+      .sort((a, b) => b.avgWr - a.avgWr);
+
+    return list;
   }
 
   function findWeakestLink(rosterData) {
@@ -453,7 +475,7 @@
     const err = rd.error;
 
     const card = document.createElement("div");
-    card.className = `${INLINE_CLASS} fta-inline-${teamKind}`;
+    card.className = `${INLINE_CLASS} fta-inline-${teamKind} fta-compact`;
 
     if (err) {
       card.innerHTML = `<div class="fta-row fta-muted">${nicknameSafe}: статистика временно недоступна.</div>`;
@@ -474,59 +496,60 @@
     const extraStats = pickExtraStats(lt);
     const weakestEnemyNickname = teamKind === "own" ? lastMatchState.weakestEnemy : null;
     const tactic = generateTactic(nickname, lt, mapSeg, mapName, weakestEnemyNickname);
-    const finishedEntry = lastMatchState.finished && lastMatchState.finished.byPlayerId.get(rd.roster.player_id);
 
-    const chips = [];
-    if (kd) chips.push(`<div class="fta-chip"><b>${kd.toFixed(2)}</b><span>${ftaT("card_kd")}</span></div>`);
-    if (wr) chips.push(`<div class="fta-chip"><b>${wr.toFixed(0)}%</b><span>${ftaT("card_winrate")}</span></div>`);
-    if (hs) chips.push(`<div class="fta-chip"><b>${hs.toFixed(0)}%</b><span>${ftaT("card_hs")}</span></div>`);
-    if (matches) chips.push(`<div class="fta-chip"><b>${matches}</b><span>${ftaT("card_matches")}</span></div>`);
-    if (level) chips.push(`<div class="fta-chip"><b>${escapeHtml(level)}</b><span>${ftaT("card_level")}</span></div>`);
-    if (elo) chips.push(`<div class="fta-chip"><b>${escapeHtml(elo)}</b><span>${ftaT("card_elo")}</span></div>`);
+    // ---- header: nick + level/ELO badges, one line ----
+    let html = `<div class="fta-row fta-head">
+      <span class="fta-nick">${nicknameSafe}</span>
+      <span class="fta-badges">
+        ${level ? `<span class="fta-badge">${ftaT("card_level")} ${escapeHtml(level)}</span>` : ""}
+        ${elo ? `<span class="fta-badge">${escapeHtml(elo)} ${ftaT("card_elo")}</span>` : ""}
+      </span>
+    </div>`;
 
-    let html = `<div class="fta-row fta-head"><span class="fta-nick">${nicknameSafe}</span></div>`;
-    if (chips.length) html += `<div class="fta-row fta-chips">${chips.join("")}</div>`;
+    // ---- winrate as a thin bar ----
+    if (wr) {
+      html += `<div class="fta-bar-row">
+        <div class="fta-bar"><div class="fta-bar-fill" style="width:${Math.min(wr, 100)}%"></div></div>
+        <span class="fta-bar-label">${wr.toFixed(0)}% ${ftaT("card_winrate")}</span>
+      </div>`;
+    }
 
+    // ---- primary line: K/D · HS% · matches (+ current map if voted) ----
+    const primary = [];
+    if (kd) primary.push(`${ftaT("card_kd")} ${kd.toFixed(2)}`);
+    if (hs) primary.push(`${ftaT("card_hs")} ${hs.toFixed(0)}%`);
+    if (matches) primary.push(`${matches} ${ftaT("card_matches")}`);
+    if (mapSeg && mapSeg.stats && num(mapSeg.stats["Matches"]) > 0) {
+      primary.push(`${escapeHtml(mapName)} ${num(mapSeg.stats["Win Rate %"]).toFixed(0)}%`);
+    }
+    if (primary.length) html += `<div class="fta-line">${primary.join(" · ")}</div>`;
+
+    // ---- maps line: favorite / weak, one line ----
+    const mapBits = [];
+    if (best) mapBits.push(`${escapeHtml(best.label)} ${best.wr.toFixed(0)}%`);
+    if (worst) mapBits.push(`${escapeHtml(worst.label)} ${worst.wr.toFixed(0)}%`);
+    if (mapBits.length) html += `<div class="fta-line fta-line-muted">${mapBits.join(" · ")}</div>`;
+
+    html += buildRecentFormHtml(recentForm);
+
+    // ---- secondary details, collapsed by default ----
+    const moreRows = [];
     if (sideStats) {
       const parts = [];
       if (sideStats.ct !== null) parts.push(`CT ${sideStats.ct.toFixed(0)}%`);
       if (sideStats.t !== null) parts.push(`T ${sideStats.t.toFixed(0)}%`);
-      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_side")} (${escapeHtml(mapName)})</span><span>${parts.join(" · ")}</span></div>`;
+      moreRows.push([`${ftaT("card_side")} (${escapeHtml(mapName)})`, parts.join(" · ")]);
     }
-
-    if (mapSeg && mapSeg.stats) {
-      const mwr = num(mapSeg.stats["Win Rate %"]);
-      const mMatches = num(mapSeg.stats["Matches"]);
-      if (mMatches > 0) {
-        html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_onmap")} (${escapeHtml(mapName)})</span><span>${mwr.toFixed(0)}% (${mMatches})</span></div>`;
-      }
-    }
-
-    if (best) {
-      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_favmap")}</span><span>${escapeHtml(best.label)} — ${best.wr.toFixed(0)}%</span></div>`;
-    }
-    if (worst) {
-      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_worstmap")}</span><span>${escapeHtml(worst.label)} — ${worst.wr.toFixed(0)}%</span></div>`;
-    }
-
-    html += buildRecentFormHtml(recentForm);
-
     if (ownRecentInfo) {
-      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("card_history", { n: ownRecentInfo.sample })}</span><span>${ownRecentInfo.wins}-${ownRecentInfo.losses}</span></div>`;
+      moreRows.push([ftaT("card_history", { n: ownRecentInfo.sample }), `${ownRecentInfo.wins}-${ownRecentInfo.losses}`]);
     }
-
-    if (finishedEntry) {
-      html += `<div class="fta-row"><span class="fta-row-label">${ftaT("popup_finished_title")}</span><span>${ftaT("card_finished_line", { kd: finishedEntry.kd.toFixed(2), avg: finishedEntry.avg ? finishedEntry.avg.toFixed(2) : "—" })}</span></div>`;
+    for (const [key, value] of extraStats) {
+      moreRows.push([escapeHtml(key), escapeHtml(value)]);
     }
-
-    if (extraStats.length) {
-      html += `<details class="fta-extra"><summary>${ftaT("card_extra")}</summary>`;
-      for (const [key, value] of extraStats) {
-        html += `<div class="fta-row fta-row-sm"><span class="fta-row-label">${escapeHtml(key)}</span><span>${escapeHtml(value)}</span></div>`;
-      }
+    if (moreRows.length) {
+      html += `<details class="fta-extra"><summary>${ftaT("card_more")}</summary>`;
+      html += moreRows.map(([label, value]) => `<div class="fta-row fta-row-sm"><span class="fta-row-label">${label}</span><span>${value}</span></div>`).join("");
       html += `</details>`;
-    } else {
-      html += `<div class="fta-row fta-muted fta-row-sm">${ftaT("card_no_extra")}</div>`;
     }
 
     if (teamKind === "own" && settings.showTactics) {
@@ -550,27 +573,58 @@
   }
 
   function buildTeamSummaryCard() {
-    const { mapName, bestMaps, weakestEnemy, headToHead, finished } = lastMatchState;
-    const rows = [];
+    const { mapName, weakestEnemy, headToHead, finished, own } = lastMatchState;
+    const avgs = computeTeamAverages(own);
+    const mapStats = computeTeamMapStats(own);
 
-    if (mapName) rows.push([ftaT("popup_match_map"), escapeHtml(mapName)]);
-    if (bestMaps && bestMaps.length) rows.push([ftaT("popup_match_bestmaps"), escapeHtml(bestMaps.join(", "))]);
-    if (weakestEnemy) rows.push([ftaT("popup_match_weakest"), escapeHtml(weakestEnemy)]);
-    if (headToHead && headToHead.length) {
-      const h2h = headToHead.map((e) => `${escapeHtml(e.nickname)} ${e.wins}-${e.losses}`).join(" · ");
-      rows.push([ftaT("popup_match_h2h"), h2h]);
-    }
-    if (finished) {
-      if (finished.mvp) rows.push([ftaT("popup_finished_mvp"), escapeHtml(finished.mvp)]);
-      if (finished.weak) rows.push([ftaT("popup_finished_weak"), escapeHtml(finished.weak)]);
-    }
-
-    if (!rows.length) return null;
+    const hasContent =
+      avgs.elo || avgs.level || avgs.kd || avgs.wr || mapName || mapStats.length >= 2 || weakestEnemy || (headToHead && headToHead.length) || finished;
+    if (!hasContent) return null;
 
     const card = document.createElement("div");
     card.className = `${INLINE_CLASS} fta-inline-summary`;
-    let html = `<div class="fta-row fta-head"><span class="fta-nick">${ftaT(finished ? "popup_finished_title" : "popup_section_match")}</span></div>`;
-    html += rows.map(([label, value]) => `<div class="fta-row"><span class="fta-row-label">${label}</span><span>${value}</span></div>`).join("");
+    let html = `<div class="fta-row fta-head"><span class="fta-nick">${ftaT(finished ? "popup_finished_title" : "team_section_summary")}</span></div>`;
+
+    // ---- team averages, one line ----
+    const avgBits = [];
+    if (avgs.elo) avgBits.push(`ELO ${avgs.elo.toFixed(0)}`);
+    if (avgs.level) avgBits.push(`${ftaT("card_level")} ${avgs.level.toFixed(1)}`);
+    if (avgs.kd) avgBits.push(`${ftaT("card_kd")} ${avgs.kd.toFixed(2)}`);
+    if (avgs.wr) avgBits.push(`WR ${avgs.wr.toFixed(0)}%`);
+    if (avgBits.length) html += `<div class="fta-line">${ftaT("team_avg")}: ${avgBits.join(" · ")}</div>`;
+
+    if (mapName) html += `<div class="fta-line fta-line-muted">${ftaT("popup_match_map")}: ${escapeHtml(mapName)}</div>`;
+
+    // ---- map pick/ban bars ----
+    if (mapStats.length >= 2) {
+      html += `<div class="fta-maps">`;
+      mapStats.forEach((m, i) => {
+        const tag =
+          i === 0 ? `<span class="fta-tag fta-tag-pick">${ftaT("team_maps_pick")}</span>` :
+          i === mapStats.length - 1 ? `<span class="fta-tag fta-tag-ban">${ftaT("team_maps_ban")}</span>` : "";
+        html += `<div class="fta-map-row">
+          <span class="fta-map-label">${escapeHtml(m.label)}</span>
+          <div class="fta-bar fta-bar-sm"><div class="fta-bar-fill" style="width:${Math.min(m.avgWr, 100)}%"></div></div>
+          <span class="fta-map-pct">${m.avgWr.toFixed(0)}%</span>
+          ${tag}
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    if (weakestEnemy) html += `<div class="fta-line">${ftaT("popup_match_weakest")}: ${escapeHtml(weakestEnemy)}</div>`;
+    if (headToHead && headToHead.length) {
+      const h2h = headToHead.map((e) => `${escapeHtml(e.nickname)} ${e.wins}-${e.losses}`).join(" · ");
+      html += `<div class="fta-line fta-line-muted">${ftaT("popup_match_h2h")}: ${h2h}</div>`;
+    }
+
+    if (finished) {
+      if (finished.mvp) html += `<div class="fta-line">${ftaT("popup_finished_mvp")}: <b>${escapeHtml(finished.mvp)}</b></div>`;
+      if (finished.weak && finished.weak !== finished.mvp) {
+        html += `<div class="fta-line">${ftaT("popup_finished_weak")}: <b>${escapeHtml(finished.weak)}</b></div>`;
+      }
+    }
+
     card.innerHTML = html;
     return card;
   }
@@ -649,7 +703,6 @@
       Promise.all(enemyRoster.map(async (roster) => ({ roster, ...(await loadPlayerData(roster.player_id)) })))
     ]);
 
-    const bestMaps = suggestBestMaps(ownData);
     const weakestEnemy = findWeakestLink(enemyData);
     const settings = await chrome.storage.sync.get({ showTactics: true, showSummary: true });
 
@@ -658,7 +711,6 @@
       mapName,
       own: ownData,
       enemy: enemyData,
-      bestMaps,
       weakestEnemy: weakestEnemy ? weakestEnemy.roster.nickname : null,
       headToHead: [],
       settings,

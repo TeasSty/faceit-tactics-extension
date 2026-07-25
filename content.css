@@ -2,12 +2,12 @@
   flex: 1 0 100%;
   width: 100%;
   box-sizing: border-box;
-  margin-top: 6px;
-  padding: 8px 2px 2px;
+  margin-top: 5px;
+  padding: 6px 2px 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
   font-family: "Inter", "Segoe UI", Roboto, -apple-system, sans-serif;
-  font-size: 11.5px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
   color: #cdd0d8;
 }
 
@@ -19,73 +19,93 @@
   color: #ff8a3d;
 }
 
-.fta-inline .fta-row {
+/* ---- header: nick + badges ---- */
+
+.fta-inline .fta-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 3px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 8px;
+  padding-bottom: 3px;
 }
 
-.fta-inline .fta-row:first-child {
-  border-top: none;
+.fta-inline .fta-nick {
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #f1f2f5;
+  letter-spacing: 0.1px;
+}
+
+.fta-inline .fta-badges {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.fta-inline .fta-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #ff8a3d;
+  background: rgba(255, 85, 0, 0.1);
+  padding: 1px 6px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ---- winrate bar ---- */
+
+.fta-inline .fta-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 3px;
+}
+
+.fta-inline .fta-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.fta-inline .fta-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5500, #ff8a3d);
+  border-radius: 3px;
+}
+
+.fta-inline .fta-bar-label {
+  font-size: 9.5px;
+  color: #7d8290;
+  flex-shrink: 0;
+}
+
+/* ---- compact info lines ---- */
+
+.fta-inline .fta-line {
+  padding: 2px 0;
+  color: #cdd0d8;
+}
+
+.fta-inline .fta-line-muted {
+  color: #7d8290;
+  font-size: 10.5px;
+}
+
+/* ---- recent form dots ---- */
+
+.fta-inline .fta-recent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
 }
 
 .fta-inline .fta-row-label {
   color: #7d8290;
   flex-shrink: 0;
-}
-
-.fta-inline .fta-row-sm {
-  font-size: 10.5px;
-}
-
-.fta-inline .fta-muted {
-  color: #666b76;
-  font-style: normal;
-  justify-content: flex-start;
-}
-
-.fta-inline .fta-head {
-  padding-top: 0;
-}
-
-.fta-inline .fta-nick {
-  font-weight: 700;
-  font-size: 12px;
-  color: #f1f2f5;
-  letter-spacing: 0.1px;
-}
-
-.fta-inline .fta-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-start;
-  padding-top: 5px;
-  padding-bottom: 5px;
-}
-
-.fta-inline .fta-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 40px;
-}
-
-.fta-inline .fta-chip b {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #ff8a3d;
-}
-
-.fta-inline .fta-chip span {
-  font-size: 9px;
-  color: #7d8290;
-  margin-top: 1px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
 }
 
 .fta-inline .fta-dots {
@@ -94,8 +114,8 @@
 }
 
 .fta-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   display: inline-block;
 }
@@ -108,16 +128,43 @@
   background: #4a4d56;
 }
 
+/* ---- error / misc rows (used outside the compact layout too) ---- */
+
+.fta-inline .fta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.fta-inline .fta-row:first-child {
+  border-top: none;
+}
+
+.fta-inline .fta-row-sm {
+  font-size: 10px;
+}
+
+.fta-inline .fta-muted {
+  color: #666b76;
+  font-style: normal;
+  justify-content: flex-start;
+}
+
+/* ---- collapsible details (secondary stats + tactic) ---- */
+
 .fta-inline details.fta-extra,
 .fta-inline details.fta-tactic-wrap {
-  margin-top: 4px;
+  margin-top: 3px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 4px;
+  padding-top: 3px;
 }
 
 .fta-inline summary {
   cursor: pointer;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   color: #ff8a3d;
   list-style: none;
@@ -139,17 +186,17 @@
 
 .fta-inline .fta-tactic-text {
   color: #cdd0d8;
-  padding: 6px 0 2px;
-  font-size: 11.5px;
-  line-height: 1.5;
+  padding: 5px 0 2px;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .fta-inline .fta-insert-btn {
   width: 100%;
-  margin-top: 4px;
-  padding: 6px 10px;
+  margin-top: 3px;
+  padding: 5px 10px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #ff8a3d;
   background: transparent;
@@ -162,6 +209,61 @@
 .fta-inline .fta-insert-btn:hover {
   background: rgba(255, 85, 0, 0.12);
   color: #ffb26b;
+}
+
+/* ---- team card: map pick/ban rows ---- */
+
+.fta-inline .fta-maps {
+  padding: 3px 0;
+}
+
+.fta-inline .fta-map-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+}
+
+.fta-inline .fta-map-label {
+  width: 64px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: #cdd0d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fta-inline .fta-bar-sm {
+  height: 3px;
+}
+
+.fta-inline .fta-map-pct {
+  width: 30px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 10px;
+  color: #9aa0ac;
+}
+
+.fta-inline .fta-tag {
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.fta-inline .fta-tag-pick {
+  color: #6fcf97;
+  background: rgba(111, 207, 151, 0.12);
+}
+
+.fta-inline .fta-tag-ban {
+  color: #ff8484;
+  background: rgba(255, 90, 90, 0.1);
 }
 
 #fta-toast {
