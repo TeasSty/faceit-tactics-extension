@@ -26,6 +26,9 @@ function applyStaticTexts() {
   document.getElementById("label-features").textContent = ftaT("popup_section_features");
   document.getElementById("label-tactic").textContent = ftaT("popup_toggle_tactic");
   document.getElementById("label-summary").textContent = ftaT("popup_toggle_summary");
+  document.getElementById("label-nickname").textContent = ftaT("popup_label_nickname");
+  document.getElementById("hint-nickname").textContent = ftaT("popup_hint_nickname");
+  document.getElementById("myNickname").placeholder = ftaT("popup_nickname_placeholder");
   document.getElementById("label-language").textContent = ftaT("popup_section_language");
   document.getElementById("label-more").textContent = ftaT("popup_section_more");
   document.getElementById("label-about").textContent = ftaT("popup_link_about");
@@ -84,14 +87,23 @@ async function main() {
   // settings
   const showTacticsInput = document.getElementById("showTactics");
   const showSummaryInput = document.getElementById("showSummary");
-  const { showTactics, showSummary } = await chrome.storage.sync.get({ showTactics: true, showSummary: true });
+  const myNicknameInput = document.getElementById("myNickname");
+  const { showTactics, showSummary, myNickname } = await chrome.storage.sync.get({
+    showTactics: true,
+    showSummary: true,
+    myNickname: ""
+  });
   showTacticsInput.checked = showTactics;
   showSummaryInput.checked = showSummary;
+  myNicknameInput.value = myNickname;
   showTacticsInput.addEventListener("change", () => {
     chrome.storage.sync.set({ showTactics: showTacticsInput.checked });
   });
   showSummaryInput.addEventListener("change", () => {
     chrome.storage.sync.set({ showSummary: showSummaryInput.checked });
+  });
+  myNicknameInput.addEventListener("change", () => {
+    chrome.storage.sync.set({ myNickname: myNicknameInput.value.trim() });
   });
 
   // language switch
